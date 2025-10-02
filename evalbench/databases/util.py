@@ -8,7 +8,8 @@ import redis
 import re
 from dataclasses import dataclass, field
 
-CLIENT=secretmanager_v1.SecretManagerServiceClient()
+CLIENT = secretmanager_v1.SecretManagerServiceClient()
+
 
 @dataclass
 class Column:
