@@ -8,6 +8,7 @@ from google.cloud.alloydb.connector import IPTypes as AlloyDBIPTypes
 
 CONNECTOR = AlloyDBConnector()
 
+
 class AlloyDB(PGDB):
     def __init__(self, db_config):
         """
