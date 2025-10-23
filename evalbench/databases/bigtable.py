@@ -52,7 +52,7 @@ class BigtableDB(DB):
     ) -> Tuple[Any, Any, Any]:
         if query.strip() == "":
             return None, None, None
-
+        # Note: BT Does not support cache or rollback
         return self._execute(query, eval_query)
 
     def _execute_query(self, query: str) -> Tuple[List, Optional[str]]:
