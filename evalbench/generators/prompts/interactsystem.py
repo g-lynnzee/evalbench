@@ -29,7 +29,7 @@ NOTE: If you think you have asked enough questions or used up all turns, you MUS
 # User Task:
 [[user_query]]
 
-### Turn 1 ([[max_turn]] turns left):
+### Turn 1 ([[max_turn]] turns left): 
 # Format: "<s>[YOUR-ONLY-ONE-QUESTION]</s>" if you choose to ask for clarification; or "<t>```postgresql [FILL-YOUR-SQL] ```</t>" if you choose to generate final SQL.
 - You: """
 
@@ -79,7 +79,9 @@ class InteractSystemGenerator(PromptGenerator):
                     + user_response
                     + '\n\n### Turn [[turn_i]] ([[turn_left]] turns left): \n# Format: "<s>[YOUR-ONLY-ONE-QUESTION]]</s>" if you choose to ask for clarification; or "<t>```postgresql [YOUR-SQL] ```</t>" if you choose to generate final SQL.\n- You: '.replace(
                         "[[turn_i]]", str(turn_i)
-                    ).replace("[[turn_left]]", str(max_turn - turn_i + 1))
+                    ).replace(
+                        "[[turn_left]]", str(max_turn - turn_i + 1)
+                    )
                 )
                 item["prompt"] = prompt
                 item[f"prompt_turn_{turn_i}"] = prompt
