@@ -26,7 +26,7 @@ from scorers import comparator
 from .util import make_hashable, with_cache_execute
 from databases.util import get_cache_client
 
-ERROR_CATEGORIZATION_PROMPT ="""
+ERROR_CATEGORIZATION_PROMPT = """
 You are an expert SQL evaluator. Your task is to analyze a "Generated SQL" query against a "Golden SQL" (ground truth) query and their respective execution results.
 
 ### Input Data
