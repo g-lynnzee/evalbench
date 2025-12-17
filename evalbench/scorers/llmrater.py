@@ -266,6 +266,6 @@ class LLMRater(comparator.Comparator):
             else:
                 error_categorization_response = self._inference_without_caching(prompt)
 
-            response += "Error analysis:\n\n" + error_categorization_response
+            response += "\nError analysis:\n\n" + error_categorization_response
 
         return score, response
