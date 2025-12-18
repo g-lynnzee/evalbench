@@ -1,0 +1,324 @@
+{
+  "eval_set_id": "toolbox",
+  "name": "toolbox",
+  "eval_cases": [
+    {
+      "eval_id": "checks",
+      "conversation": [
+        {
+          "invocation_id": "e-91dc14e5-f293-4b21-a6c8-2614679446ae",
+          "user_content": {
+            "parts": [
+              {
+                "text": "list clusters and check if there is a cluster named adk-toolbox in cloud-db-nl2sql in us-central2"
+              }
+            ],
+            "role": "user"
+          },
+          "final_response": {
+            "parts": [
+              {
+                "text": "Yes, there is a cluster named `adk-toolbox` in the `cloud-db-nl2sql` project in the `us-central2` location.",
+                "thought_signature": "CtYGAXLI2nw_UOdZpSS56kssJpDvhF6IDEQTWedupOmmqijRftni6Mp7d4f9rG70KjP3sAsy_g1TGMUFDcAp2VWxUsgdFERjVVyVDMDtI1spbIXKa0AQDPx_IVjbDVO5iMEBQa_kdEwRDExW_rPhMxUZusgyhbwF3HpZ-YJvjoBFTsg2dFjsZcMb-S8uGtHvlZpUlBoP5ukg2GtbgSpt2F_tcN6D1ZM6JPbxfkIK2IntyXO3Kt5DRFT3B-_w5tvEQNdueqfaAR7ITSXpO7bQsQ6FP5kr28mS_je0VyIX7VuCQT3mGNbohBaaVbX7f1KHYAd_MAJgGVClHqGhJaz7FVpX8BTMvPFn5yxZ0rM1jhW_g8WMjAJdEBI7B3oDo7qLVfSca6YatVcBHsGo6iENP4OM06uVnDXbpDXlQBwZZ9lBVx-yiTTUBVCx-I_q47QS3LYWPr1wG0uQPmcepODOm-NErBupDaVq440CSjeg5S0MCI5htiO3gGKEKJPPaCGX5x33wVip85fdcFbzdS7ye4RiLw0WbnEIMfhIbU91zdS1_UN7qB-FPhf_g4lygZc7R6msoait3s4-g9b5yuwzVbEUm-1estVJcyhVh62kGp7LHe3ttbIRKwvBqB9EFCG1gBiXwNwQM518_tBCnDUOtNbHgdoZotohg_-gWSbOBYLJZzAjY5JrDTknHBMtAtOR5NfLGk_KG1OxbJzuSo3hkak5yENeqeyaJ4r01asj9LDBsJVuPvnkmwz2CeNcbYEmZU-JT2hRykejkz_XVwJSIAftrQ3k_mCYDTlPA1YTsI41pxoSiYbhRqHKZzvhT3WNKoT1nWLrVQOIWQQrwXDplYAy_ayiwWx8miuDQSPfANdpNO3aRS_ZuziQX1Keh8cxsiaiiLnF5j3BjDTf1AFapvxnuEuf8Z7jI_lTW7eIABPtl1YsioLf6OzqLKsshA3JcQp99-L4JF-0Hqchf_4uX-kbEep-HqAAoJsIPPU18gE1Iv2x_NkRdk2NKTjt9Gh68jFkUX4o15CEUvDjIYitwXEqWQ2k_sbjRQdDnHzaLNleNyVMXqy0rx87dCIJVlev1P9KnsYWre6NMYsO_orvl9h7jPp88teP4pesUVYTLm4JmJYT9ZgR7FY="
+              }
+            ],
+            "role": "model"
+          },
+          "intermediate_data": {
+            "invocation_events": [
+              {
+                "author": "root_agent",
+                "content": {
+                  "parts": [
+                    {
+                      "function_call": {
+                        "id": "adk-f656353a-b968-4296-9a5f-c329e483454e",
+                        "args": {
+                          "project": "cloud-db-nl2sql",
+                          "location": "us-central2"
+                        },
+                        "name": "list_clusters"
+                      },
+                      "thought_signature": "Ct8EAXLI2nwx9Vmt958q3WRKIxVOoCf0wfNBZRo07i2Cs4DTHNW6HAO4e_EAJTPJkTBDMfqBpGcXVTshaBsHOsMqFwZrt7rVKzwNzNguU412p9V-_lGhKDgYMr_ymyG_gOyTvDXuFrqHvqwUBRD2_OO0R5kn1xULhfavGopAxu5mXxfqHnek6Tpokwm7u17hjuL0v8eT3nxlI8KAjjp5BoFvfmT4i9Bb_djR_ndIVHrPopRyoPd1cMmrcfjfgHbUVmtIlTFi1WOPnjAiSssChObcLFrPiFggWKfD3TXpGNIrkKBXioxbS3PasaHiGHTWp_KYjNuE9Qt5yrZ7pUMxvL6mokQpvlAHVuKJYo90Mzo7SNP5g0xlC3Uo0Zxb9zcGEQboBKuzT3DOuPP2LWhFPiP7iumS4ddMM9EBmtwKsZ-5of2GSdIKSW53KY3ygDa1RWn2nWziGYCsykXlpEWyMQCIIbtdwLAWjwi3jQRK3J7BK1js4GKhVnOsT8GU-EvAi9yBLpDuqrNEnA8wittY7UXbAX1JoZm_jfjrXJPd8eovyBLNdcgCq4c436ugVawgfyjeHcU2KGO1sp_dntKnZtooihZKOB-3992aPxaw8IiFaFb_iqox_JftQby3lHIGwcR_YNKjx0c-pGZIUaGCOYzkB1-61K2QdVuVmps4pgutCSXgUhvJZWtKwrO-qeC0hnxSbTaQBQHJle4Cksw2Gn2xRX42T_JhQwu4mkw4TXD2lAf5pQrc5eZukPy-twGstF5afUXjt8paS1_xSDbt2kI7uy067Q-81r1Wag0ShAm80w=="
+                    }
+                  ],
+                  "role": "model"
+                }
+              },
+              {
+                "author": "root_agent",
+                "content": {
+                  "parts": [
+                    {
+                      "function_response": {
+                        "id": "adk-f656353a-b968-4296-9a5f-c329e483454e",
+                        "name": "list_clusters",
+                        "response": {
+                          "result": "{\"clusters\":[{\"automatedBackupPolicy\":{\"backupWindow\":\"3600s\",\"location\":\"us-central2\",\"timeBasedRetention\":{\"retentionPeriod\":\"1209600s\"},\"weeklySchedule\":{\"daysOfWeek\":[\"MONDAY\",\"TUESDAY\",\"WEDNESDAY\",\"THURSDAY\",\"FRIDAY\",\"SATURDAY\",\"SUNDAY\"],\"startTimes\":[{\"hours\":23}]}},\"clusterType\":\"PRIMARY\",\"continuousBackupConfig\":{\"enabled\":true,\"recoveryWindowDays\":14},\"continuousBackupInfo\":{\"enabledTime\":\"2025-12-16T18:58:29.364924883Z\",\"encryptionInfo\":{\"encryptionType\":\"GOOGLE_DEFAULT_ENCRYPTION\"},\"schedule\":[\"MONDAY\",\"TUESDAY\",\"WEDNESDAY\",\"THURSDAY\",\"FRIDAY\",\"SATURDAY\",\"SUNDAY\"]},\"createTime\":\"2025-12-16T18:58:29.597395684Z\",\"databaseVersion\":\"POSTGRES_16\",\"encryptionInfo\":{\"encryptionType\":\"GOOGLE_DEFAULT_ENCRYPTION\"},\"name\":\"projects/cloud-db-nl2sql/locations/us-central2/clusters/adk-toolbox\",\"network\":\"projects/898603957982/global/networks/default\",\"networkConfig\":{\"network\":\"projects/898603957982/global/networks/default\"},\"state\":\"READY\",\"subscriptionType\":\"STANDARD\",\"uid\":\"36d2bc60-e46b-41d7-b7a8-ed082a78fa01\",\"updateTime\":\"2025-12-16T19:05:18.786398365Z\"},{\"automatedBackupPolicy\":{\"backupWindow\":\"3600s\",\"location\":\"us-central2\",\"timeBasedRetention\":{\"retentionPeriod\":\"1209600s\"},\"weeklySchedule\":{\"daysOfWeek\":[\"MONDAY\",\"TUESDAY\",\"WEDNESDAY\",\"THURSDAY\",\"FRIDAY\",\"SATURDAY\",\"SUNDAY\"],\"startTimes\":[{\"hours\":8}]}},\"clusterType\":\"PRIMARY\",\"continuousBackupConfig\":{\"enabled\":true,\"recoveryWindowDays\":14},\"continuousBackupInfo\":{\"enabledTime\":\"2025-12-04T05:45:33.951947875Z\",\"encryptionInfo\":{\"encryptionType\":\"GOOGLE_DEFAULT_ENCRYPTION\"},\"schedule\":[\"MONDAY\",\"TUESDAY\",\"WEDNESDAY\",\"THURSDAY\",\"FRIDAY\",\"SATURDAY\",\"SUNDAY\"]},\"createTime\":\"2025-12-04T05:45:34.133749280Z\",\"databaseVersion\":\"POSTGRES_16\",\"encryptionInfo\":{\"encryptionType\":\"GOOGLE_DEFAULT_ENCRYPTION\"},\"name\":\"projects/cloud-db-nl2sql/locations/us-central2/clusters/postgres\",\"network\":\"projects/898603957982/global/networks/default\",\"networkConfig\":{\"network\":\"projects/898603957982/global/networks/default\"},\"state\":\"READY\",\"subscriptionType\":\"STANDARD\",\"uid\":\"75a5af5f-0050-4fb9-93ab-5e2ae3c4932a\",\"updateTime\":\"2025-12-16T18:18:07.956419930Z\"}]}"
+                        }
+                      }
+                    }
+                  ],
+                  "role": "user"
+                }
+              }
+            ]
+          },
+          "creation_timestamp": 1765911971.685792
+        },
+        {
+          "invocation_id": "e-3e6510d9-4699-4dd8-a1dd-756a33eadb30",
+          "user_content": {
+            "parts": [
+              {
+                "text": "does adk-toolbox exist in cloud-db-nl2sql in us-central2\n"
+              }
+            ],
+            "role": "user"
+          },
+          "final_response": {
+            "parts": [
+              {
+                "text": "Yes, the cluster 'adk-toolbox' exists in the project 'cloud-db-nl2sql' in the 'us-central2' location."
+              }
+            ],
+            "role": "model"
+          },
+          "intermediate_data": {
+            "invocation_events": [
+              {
+                "author": "root_agent",
+                "content": {
+                  "parts": [
+                    {
+                      "function_call": {
+                        "id": "adk-0d7054d7-c9c0-43a2-bfbe-cab8a0320a2d",
+                        "args": {
+                          "project": "cloud-db-nl2sql",
+                          "cluster": "adk-toolbox",
+                          "location": "us-central2"
+                        },
+                        "name": "get_specific_cluster"
+                      },
+                      "thought_signature": "CroEAXLI2ny_4mvjKQwaIjyPNcUnpiXw5FMTGQ7Jd_gU_zCgnZd8eaw78e7BXY4H03Xa9AvjntzRKTC4kCFzaUHitEW5eCopBZ-qoncfeFSBMkg0jJUuSv1Ls5dEmvAQOO_-L5bAt248ZGgBgNCYm-jfApQMUhKRuWwe7N1Zs4ZesYz2KNWaMvdeVGQRcpFw0z18w2n07I1e--iVNH-H2Xp9_J8n5-ipKxKPqX3qeV5Nxj6QvF1gxnexlm1Krfo4SDs7qCYdrjLvgaPbOFjfop-ndClCTbThJcUi67O0GiIqrPbW4_BK4vN1eFFPwUrW44zkAHJS7dBSBeT4LvpDAmrwXOWGLb8ESxxZNob-ff36skAn8wrbIBs899ofm12JGiTLApbu5xbzKifB1K4yDJ6hi2aFvNk3YI_S40N5YtpRuK7TZoTpifjOgLIauTjeeDV8XvyqEZ4rOEat_E6jjvpuzPwXY2Hkvr-qq4oYAEQ0b-4s2ILq9dBefIIfPGtI_xyLgk_4kSCXWOGwknXH6vUjI7LgurCnj-PAnJhAwVcv4ox97Zb1Th-LZGXpVxswoNw1-mx0E3DBQ5VAjg7ySsfExyU6MuR2CfBDuRqDN1RKGspFA56j3WOSLsUzLPckpOlqIOSn1TLKJ2UPPc1D4-eyY7V6SHNAXqt3pQaSEBNU3MGKNOi7KD66R_WWsXUYYrrdLne62WKN50dhOv5bgDoS5NjyaMD-fl3GMHqXTWr_31-VYuQOAyNi8izE"
+                    }
+                  ],
+                  "role": "model"
+                }
+              },
+              {
+                "author": "root_agent",
+                "content": {
+                  "parts": [
+                    {
+                      "function_response": {
+                        "id": "adk-0d7054d7-c9c0-43a2-bfbe-cab8a0320a2d",
+                        "name": "get_specific_cluster",
+                        "response": {
+                          "result": "{\"automatedBackupPolicy\":{\"backupWindow\":\"3600s\",\"location\":\"us-central2\",\"timeBasedRetention\":{\"retentionPeriod\":\"1209600s\"},\"weeklySchedule\":{\"daysOfWeek\":[\"MONDAY\",\"TUESDAY\",\"WEDNESDAY\",\"THURSDAY\",\"FRIDAY\",\"SATURDAY\",\"SUNDAY\"],\"startTimes\":[{\"hours\":23}]}},\"clusterType\":\"PRIMARY\",\"continuousBackupConfig\":{\"enabled\":true,\"recoveryWindowDays\":14},\"continuousBackupInfo\":{\"enabledTime\":\"2025-12-16T18:58:29.364924883Z\",\"encryptionInfo\":{\"encryptionType\":\"GOOGLE_DEFAULT_ENCRYPTION\"},\"schedule\":[\"MONDAY\",\"TUESDAY\",\"WEDNESDAY\",\"THURSDAY\",\"FRIDAY\",\"SATURDAY\",\"SUNDAY\"]},\"createTime\":\"2025-12-16T18:58:29.597395684Z\",\"databaseVersion\":\"POSTGRES_16\",\"encryptionInfo\":{\"encryptionType\":\"GOOGLE_DEFAULT_ENCRYPTION\"},\"name\":\"projects/cloud-db-nl2sql/locations/us-central2/clusters/adk-toolbox\",\"network\":\"projects/898603957982/global/networks/default\",\"networkConfig\":{\"network\":\"projects/898603957982/global/networks/default\"},\"state\":\"READY\",\"subscriptionType\":\"STANDARD\",\"uid\":\"36d2bc60-e46b-41d7-b7a8-ed082a78fa01\",\"updateTime\":\"2025-12-16T19:05:18.786398365Z\"}"
+                        }
+                      }
+                    }
+                  ],
+                  "role": "user"
+                }
+              }
+            ]
+          },
+          "creation_timestamp": 1765912006.326264
+        },
+        {
+          "invocation_id": "e-d43424e4-274a-42f0-b3f3-14f338019f89",
+          "user_content": {
+            "parts": [
+              {
+                "text": "does instance adk-toolbox-instance exist in cluster adk-toolbox in project cloud-db-nl2sql in us-central2\n"
+              }
+            ],
+            "role": "user"
+          },
+          "final_response": {
+            "parts": [
+              {
+                "text": "Yes, the instance 'adk-toolbox-instance' exists in the cluster 'adk-toolbox' in the project 'cloud-db-nl2sql' in the 'us-central2' location."
+              }
+            ],
+            "role": "model"
+          },
+          "intermediate_data": {
+            "invocation_events": [
+              {
+                "author": "root_agent",
+                "content": {
+                  "parts": [
+                    {
+                      "function_call": {
+                        "id": "adk-b90247ff-c2a4-4fca-8d08-dce336711e98",
+                        "args": {
+                          "location": "us-central2",
+                          "instance": "adk-toolbox-instance",
+                          "cluster": "adk-toolbox",
+                          "project": "cloud-db-nl2sql"
+                        },
+                        "name": "get_specific_instance"
+                      },
+                      "thought_signature": "CtIHAXLI2nw-7oWAoejav-cFodP9-2zkBszj_CMx62IHNlLPc6221f5IMqOpFqgp84G_KYolHNw38h8hFPRDPJf8ysith423z4XQT0cwthVp8zp6ihJXh7muOPvlIhSYB0fGARsqMj279IOEzcNYkNmewKzYYtXa0wSvN4VV2zdnQCWbpWoBOlja2hlRFQe4SZEY5QktlyTNSz3gyLWsSECKdCqH-mr3nRNooauhzSpaLMYNmo17uH_m_KcbSNYvIzV_0ov_AIUqHQa7C6uZy_W5PFx0CsFV6_gtthRdFN9P-4c7BLAGVfsVOW3fBxlVNIFgExUN0m_gFpuTr1t8OwGoayDO3ArOfgUg-eCcsGBJXbz2blb3zvabl42rormEKoohHeTBxLDbQDZ64XWk5ARM2mY5hF_DXwVPVura3JnHMrlSvXNhz0TXIq6R0-UKUzsqOJHDOSUtnWBJ8NSmq5Mz9qgwev9Z6qftSEQ9uqnx1znx6nFNtOs1fU5JWTbQVRVd4uG6B5eZLWXpkCTmEKXp3e23AuWF0r8Nni7WrbKknXwvQKZxJdjuv0QV0Xqu5qVPR9EaRP1S2bA8ejeyoqEuW53YJ3I8NfRrXdctwaGpHqSLJKUe9VPFULsCKKKKffvl_bJmICdLGKC47KEK4d7CMqQX-GIQsIxJ-yLIZppTbq3lAV4oXLDH4Z6UJ9lVHuVja5wRRWj17AC-71So0JECcHZO5Mt9wpfCHtgSqXf8aGtAv_KWNsh5tC8KdIg832ijjIlKzzCJQRIKssOphqr_IXCdByNJldt6HbobIdyRDckxMaJRlKbwN8x_czBVW_uT5uIwC3muoFAbZpXod76QZ8V_ONSQR66NHYUkz5apRnkfQESyMVBAjmb0StzIotbA94NUqtWnvbYiJ6l7wD9oNbX2sru2JL26wOCW6N_BCIIIjSyQCq62614bL8b9uTgqh1Io8WDdB89HDc2dUQcmzWNAj8G64pHQwXrcQNaF01Yznah_wBnA4qzcZrSb4uSZQRvsMwaYXRBKQcBFbREq5-hQBJ6-2HPuAY4jHPuert_W2Tmp37GYuV21sG-BX3yA8d4n5lvKU06lNrW7YP88aJqVJNDH0bRcQ0VQYbMtKZ0Vz6_ZwS1cbBMkjfGEkaab7iEkHD-LO9nRCK0V8mZF2qL-HQtEytfCwEnNpaHG9WIYK3GmDVdkVI8Y7DsniiuPHS3hZamfizttiPow6yxvXHX3mv93sQKJOawWLNgIYOSFuJlOIh92472QxePUxuM_CTOT2vbK_ePs7XIrMhB8uSfC"
+                    }
+                  ],
+                  "role": "model"
+                }
+              },
+              {
+                "author": "root_agent",
+                "content": {
+                  "parts": [
+                    {
+                      "function_response": {
+                        "id": "adk-b90247ff-c2a4-4fca-8d08-dce336711e98",
+                        "name": "get_specific_instance",
+                        "response": {
+                          "result": "{\"activationPolicy\":\"ALWAYS\",\"availabilityType\":\"REGIONAL\",\"clientConnectionConfig\":{\"sslConfig\":{\"sslMode\":\"ENCRYPTED_ONLY\"}},\"createTime\":\"2025-12-16T18:58:40.730828585Z\",\"databaseFlags\":{\"password.enforce_complexity\":\"on\"},\"instanceType\":\"PRIMARY\",\"ipAddress\":\"10.19.131.17\",\"machineConfig\":{\"cpuCount\":4},\"name\":\"projects/cloud-db-nl2sql/locations/us-central2/clusters/adk-toolbox/instances/adk-toolbox-instance\",\"networkConfig\":{\"enablePublicIp\":true},\"nodes\":[{\"zoneId\":\"us-central2-b\"}],\"observabilityConfig\":{\"maxQueryStringLength\":10240,\"queryPlansPerMinute\":20,\"trackWaitEventTypes\":true,\"trackWaitEvents\":true},\"publicIpAddress\":\"35.186.100.136\",\"queryInsightsConfig\":{\"queryPlansPerMinute\":5,\"queryStringLength\":1024},\"state\":\"READY\",\"uid\":\"88ef5b4c-7690-4a04-b5a3-612fa2f93059\",\"updateTime\":\"2025-12-16T19:06:48.571852656Z\",\"writableNode\":{\"zoneId\":\"us-central2-a\"}}"
+                        }
+                      }
+                    }
+                  ],
+                  "role": "user"
+                }
+              }
+            ]
+          },
+          "creation_timestamp": 1765912017.128056
+        },
+        {
+          "invocation_id": "e-57fbdcf4-3c0f-479c-ae4a-2905f5d69962",
+          "user_content": {
+            "parts": [
+              {
+                "text": "list users in cluster adk-toolbox in project cloud-db-nl2sql in us-central2\n"
+              }
+            ],
+            "role": "user"
+          },
+          "final_response": {
+            "parts": [
+              {
+                "text": "There is one user named 'postgres' in the cluster 'adk-toolbox' in the project 'cloud-db-nl2sql' in the 'us-central2' location. This user has the 'alloydbsuperuser' role and is an 'ALLOYDB_BUILT_IN' user."
+              }
+            ],
+            "role": "model"
+          },
+          "intermediate_data": {
+            "invocation_events": [
+              {
+                "author": "root_agent",
+                "content": {
+                  "parts": [
+                    {
+                      "function_call": {
+                        "id": "adk-306b09d7-914a-4207-abf0-13d78ab0bd04",
+                        "args": {
+                          "project": "cloud-db-nl2sql",
+                          "cluster": "adk-toolbox",
+                          "location": "us-central2"
+                        },
+                        "name": "list_users"
+                      },
+                      "thought_signature": "CtYFAXLI2ny9eS22ESi2cGIIIO6rsniZozHgbw2rGYdujQ693fO13GYPimk9I9OFh_ueu7VRPDgK1eqbsSAzI9GBMI5gCOTMmBHyVl5LRgxMwS2mbjfrGkQCvi_IL82oftHam5JO5gzBoiQrq9LMhAvJ9RwCKfgaPzI1xc90_2erdDPSb5-mVloJhqKMZmlM1s3KQBmRc51mWN-kEe3BZd3Nr5ooGdD9OZEgOJi3rTvJxcoKObfA0_OjtCfgOWlsZHs7CYLotAhMqGk2Jh5bOcRwlIah0XpboeQ8qBYFDi84OoDosfJp1iHpzXeZTW_f2Tml70qLdzmTpIsMoS1Rk1HF00jcIzNlgrSIaWY1JxtLF4Kazr7cI4ToIJj4o-YI0YbTxRGyzlvgd3cqpQbkvxvyvDfZQiiU0VLTPduYlbRtTc-Vsyc4bmu2m64pqqZEwLS19CBZgB5Uh8wXq1oBimCtgFI4DqOgBdjva7LIyUJlgm1twoqbWKy6VYZus8upKf9FPLfrVdzj_annsWTt-NWSJTARnypeeFFvsDe6HXWPJ5bxR6oEgXEhbcJXxPy57j5pgWVV6lOm_USoWKkb1gt9mxGG76qdAFWhsswm1GYP9EZZvE0k84fLDaEQnXfe4z8T0bKCWDsSDS9MLfAE44qvDcn72jk3Xam_br3BMrekuEiOGlnlpNdardx8ZmORJDMWudLQAjczpEV6jA_vInkGZJ2zF0Y1IH4LadjriAIxuxvNGcUju-JJ5vUiJrBpXCWmElvwV-jfiQEH8G2vxr85nMmQ9xtHoCKHbKE2vWB88MTna6maalVL00-Uxa2-bKh3MGyCBik_RT8iViY5NseFI8NMZ0s7qK-KbQ_VqCDCb6PBe_LPPsBJRizdxjBw8dvtDqSd4vI_o7GgWlmV7787a-mR3awH2J0ZTb5hkw89C9leO0i5Xl2mXa-L2mmND50B_ZlxLdMx"
+                    }
+                  ],
+                  "role": "model"
+                }
+              },
+              {
+                "author": "root_agent",
+                "content": {
+                  "parts": [
+                    {
+                      "function_response": {
+                        "id": "adk-306b09d7-914a-4207-abf0-13d78ab0bd04",
+                        "name": "list_users",
+                        "response": {
+                          "result": "{\"users\":[{\"databaseRoles\":[\"alloydbsuperuser\"],\"name\":\"projects/cloud-db-nl2sql/locations/us-central2/clusters/adk-toolbox/users/postgres\",\"userType\":\"ALLOYDB_BUILT_IN\"}]}"
+                        }
+                      }
+                    }
+                  ],
+                  "role": "user"
+                }
+              }
+            ]
+          },
+          "creation_timestamp": 1765912024.093766
+        },
+        {
+          "invocation_id": "e-3db6d8cb-2bef-4c95-87ec-b42c36d6f6f3",
+          "user_content": {
+            "parts": [
+              {
+                "text": "does a \"postgres\" user exist in cluster adk-toolbox in project cloud-db-nl2sql in us-central2"
+              }
+            ],
+            "role": "user"
+          },
+          "final_response": {
+            "parts": [
+              {
+                "text": "Yes, a user named \"postgres\" exists in the cluster \"adk-toolbox\" in the project \"cloud-db-nl2sql\" in \"us-central2\". This user has the `alloydbsuperuser` database role and is of type `ALLOYDB_BUILT_IN`."
+              }
+            ],
+            "role": "model"
+          },
+          "intermediate_data": {
+            "invocation_events": [
+              {
+                "author": "root_agent",
+                "content": {
+                  "parts": [
+                    {
+                      "function_call": {
+                        "id": "adk-56f8e7ff-b43a-4571-bd98-bd159202f844",
+                        "args": {
+                          "project": "cloud-db-nl2sql",
+                          "cluster": "adk-toolbox",
+                          "location": "us-central2",
+                          "user": "postgres"
+                        },
+                        "name": "get_specific_user"
+                      },
+                      "thought_signature": "CtECAXLI2nxGwQPKsaCM9UULuvVF0EZQTUyCDV6JjaT6pi036jVxEDZrT-9HOfltI1HYOWn4TvP4BFHJnW1Zc56WXK6hFD8HO016okPTBuNHz57wnkXTvI5AzG_xhcX7TYDaTnEvnAXv1o9yhQBASQtZAWy2qLoHe-csixat1yU0t-H-kdg72V6nqZ5FK27f_0_NF9Slgg9__hm22ErHo3Hr5Ez3uFzgSP6vqDn4Zv2SCMMds3XKBybwRDpi7cY06wlMoK6b9WrFWqGyj2SBYEdRHo17eUPo-vugIg7MXBAgiVvFDyIKdaYPaB6vgwlkfMUQCQpjcMhf-E3v2pft1kApuRb9vpTpoWGR1znDE5t18o5yD2Kj2SxRPx6R6Z_aW-rRVW8NwgY3vxitN4zZxB29ER5gSqjuXOPKQCojaGm7470bkpYO9MINAcT4tlUppRSeGw=="
+                    }
+                  ],
+                  "role": "model"
+                }
+              },
+              {
+                "author": "root_agent",
+                "content": {
+                  "parts": [
+                    {
+                      "function_response": {
+                        "id": "adk-56f8e7ff-b43a-4571-bd98-bd159202f844",
+                        "name": "get_specific_user",
+                        "response": {
+                          "result": "{\"databaseRoles\":[\"alloydbsuperuser\"],\"name\":\"projects/cloud-db-nl2sql/locations/us-central2/clusters/adk-toolbox/users/postgres\",\"userType\":\"ALLOYDB_BUILT_IN\"}"
+                        }
+                      }
+                    }
+                  ],
+                  "role": "user"
+                }
+              }
+            ]
+          },
+          "creation_timestamp": 1765912057.30368
+        }
+      ],
+      "session_input": {
+        "app_name": "myagent",
+        "user_id": "user"
+      },
+      "creation_timestamp": 1765912543.509523
+    }
+  ],
+  "creation_timestamp": 1765912517.262793
+}

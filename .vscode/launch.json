@@ -27,7 +27,24 @@
       },
       "request": "launch",
       "program": "evalbench/client/eval_client.py",
-      "args": ["--insecure"],
+      "args": [
+        "--insecure"
+      ],
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Standalone",
+      "type": "debugpy",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "./evalbench:./evalbench/evalproto"
+      },
+      "request": "launch",
+      "program": "evalbench/evalbench.py",
+      "args": [
+        "--experiment_config",
+        "${workspaceFolder}/datasets/adk-tools/example_run_config.yaml"
+      ],
       "console": "integratedTerminal"
     }
   ]
