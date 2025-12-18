@@ -114,13 +114,13 @@ def load_dataset_from_json(json_file_path, config):
     elif dataset_format == "bird-interact-format":
         config["orchestrator"] = "interact"
         input_items = all_items
-    elif dataset_format == "adktools-format":
-        config["orchestrator"] = "adktools"
+    elif dataset_format == "adk-format":
+        config["orchestrator"] = "adk"
         input_items = all_items
     else:
         raise ValueError("Dataset not in any of the recognised formats")
 
-    if dataset_format != "adktools-format":
+    if dataset_format != "adk-format":
         totalEntries = sum(len(input_items.get(q, [])) for q in ["dql", "dml", "ddl"])
         logging.info(f"Converted {totalEntries} entries to EvalInput.")
     return input_items

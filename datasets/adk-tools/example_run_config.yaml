@@ -2,7 +2,7 @@
 ### Dataset / Eval Items
 ############################################################
 dataset_config: datasets/adk-tools/toolbox.evalset.json
-dataset_format: adktools-format
+dataset_format: adk-format
 setup_directory: datasets/adk-tools/setup
 #
 #
