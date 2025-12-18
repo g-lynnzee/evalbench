@@ -22,4 +22,6 @@ class ADKEvaluator:
         eval_outputs: List[Any] = []
         scoring_results: List[Any] = []
         logging.info("Running ADK evaluation")
+        for item in dataset:
+            print("item.payload", item.payload)
         return eval_outputs, scoring_results

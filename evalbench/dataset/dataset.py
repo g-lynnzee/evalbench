@@ -6,6 +6,7 @@ import logging
 from collections.abc import Sequence
 from dataset.evalinput import EvalInputRequest
 from dataset.evalinteractinput import EvalInteractInputRequest
+from dataset.evaladkinput import EvalADKRequest
 from itertools import chain
 
 
@@ -90,6 +91,18 @@ def load_bird_interact_dataset(json_file_path, config):
     return input_items
 
 
+def load_adk_json(json_file_path):
+    all_items = []
+    with open(json_file_path, "r") as json_file:
+        item = json.load(json_file)
+        eval_input = EvalADKRequest(
+            id=item["eval_set_id"],
+            payload=item,
+        )
+        all_items.append(eval_input)
+    return all_items
+
+
 def load_json(json_file_path):
     all_items = []
     with open(json_file_path, "r") as json_file:
@@ -102,6 +115,8 @@ def load_dataset_from_json(json_file_path, config):
     dataset_format = config.get("dataset_format", "evalbench-standard-format")
     if dataset_format == "bird-interact-format":
         all_items = load_bird_interact_dataset(json_file_path, config)
+    elif dataset_format == "adk-format":
+        all_items = load_adk_json(json_file_path)
     else:
         all_items = load_json(json_file_path)
 
