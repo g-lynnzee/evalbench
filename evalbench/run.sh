@@ -10,4 +10,5 @@ fi
 ulimit -n 4096
 
 export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
+export PYTHONPATH=$PYTHONPATH:evalbench/agent
 python3 evalbench/evalbench.py   --experiment_config="$EVAL_CONFIG"

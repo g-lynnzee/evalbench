@@ -94,10 +94,11 @@ def load_bird_interact_dataset(json_file_path, config):
 def load_adk_json(json_file_path):
     all_items = []
     with open(json_file_path, "r") as json_file:
-        item = json.load(json_file)
+        json_item = json_file.read()
+        item = json.loads(json_item)
         eval_input = EvalADKRequest(
             id=item["eval_set_id"],
-            payload=item,
+            payload=json_item,
         )
         all_items.append(eval_input)
     return all_items

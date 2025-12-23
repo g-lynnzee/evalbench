@@ -30,3 +30,6 @@ anthropic[vertex]
 sqlglot
 pymongo
 mongomock
+google-adk
+toolbox-core
+google-adk[eval]
