@@ -190,14 +190,11 @@ class DataAgentOrchestrator(Orchestrator):
                 )
                 total_eval_outputs.extend(eval_outputs)
                 total_scoring_results.extend(scoring_results)
-                break
             except Exception as e:
                 logging.info(
                     f"Failed to evaluate {sub_dataset_len} {query_type} queries "
                     + f"on DB {database} on {dialect}. Due to {e}"
                 )
-            break
-
         # Cleanup all the tmp creations that were built from the core connection
         if core_db:
             core_db.clean_tmp_creations()
