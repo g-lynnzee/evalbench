@@ -1,8 +1,9 @@
 from typing import Any, List
 import datetime
 from work import promptgenwork
-from work import sqlgeninteractwork
+from work import sqlgenquerydatawork
 from work import interactsqlexecwork
+from work import sqlexecwork
 from work import scorework
 from work import vuserwork
 from mp import mprunner
@@ -21,6 +22,7 @@ from databases import DB
 from util.interactutil import check_response, print_interact, write_item, read_item
 from util import truncateExecutionOutputs
 import logging
+import json
 
 
 class DataAgentEvaluator:
@@ -64,21 +66,34 @@ class DataAgentEvaluator:
         self.sqlrunner.futures.clear()
         self.scoringrunner.futures.clear()
 
-        for eval_input in dataset:
-            eval_output = EvalInteractOutput(eval_input)
-            eval_output["job_id"] = job_id
-            eval_output["run_time"] = run_time
-            self.interact_loop(
-                eval_output,
-                prompt_generator,
-                model_generator,
-                progress_reporting,
-                global_models,
-                core_db,
-                db_queue,
-                eval_outputs,
-                scoring_results,
-            )
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+            futures = []
+            # Submit tasks and collect future objects
+            for eval_input in dataset:
+                eval_output = EvalInteractOutput(eval_input)
+                eval_output["job_id"] = job_id
+                eval_output["run_time"] = run_time
+                futures.append(
+                    executor.submit(
+                        self.interact_loop,
+                        eval_output,
+                        prompt_generator,
+                        model_generator,
+                        progress_reporting,
+                        global_models,
+                        core_db,
+                        db_queue,
+                        eval_outputs,
+                        scoring_results,
+                    )
+                )
+            # Process results as they are completed
+            for future in concurrent.futures.as_completed(futures):
+                try:
+                    result = future.result()
+                except Exception as exc:
+                    print(f"A task generated an exception: {exc}")
+
         if db_queue:
             while not db_queue.empty():
                 db = db_queue.get()
@@ -100,4 +115,34 @@ class DataAgentEvaluator:
         eval_output["terminate_flag"] = False
         max_turn = eval_output["payload"]["max_turn"]
         eval_output["step_type"] = InteractionType.INIT
-        print("eval:", eval_output["payload"]["instance_id"])
+
+        eval_output["payload"]["turn"] = eval_output["payload"]["turn"] + 1
+        eval_output["nl_prompt"] = eval_output["payload"]["amb_user_query"]
+        eval_output["payload"]["prompt"] = eval_output["nl_prompt"]
+        eval_output["step_type"] = InteractionType.LLM_QUESTION_PROMPT
+        work = promptgenwork.SQLPromptGenWork(prompt_generator, eval_output)
+        eval_output = work.run()
+        if eval_output["prompt_generator_error"] is None:
+            record_successful_prompt_gen(progress_reporting)
+            eval_output["step_type"] = InteractionType.LLM_SQLGEN
+            work = sqlgenquerydatawork.SQLGenQueryDataWork(model_generator, eval_output)
+            eval_output = work.run()
+
+        if eval_output["sql_generator_error"] is None:
+            record_successful_sql_gen(progress_reporting)
+            eval_output["step_type"] = InteractionType.SQL_EXEC
+            eval_output["golden_sql"] = eval_output["payload"]["sol_sql"]
+            work = sqlexecwork.SQLExecWork(
+                db_queue.get(), self.config, eval_output, db_queue
+            )
+            eval_output = work.run()
+
+        record_successful_sql_exec(progress_reporting)
+        eval_output["step_type"] = InteractionType.SCORE
+        work = scorework.ScorerWork(
+            self.config, eval_output, scoring_results, global_models
+        )
+        eval_output = work.run()
+        record_successful_scoring(progress_reporting)
+        eval_outputs.append(eval_output)
+        return eval_outputs

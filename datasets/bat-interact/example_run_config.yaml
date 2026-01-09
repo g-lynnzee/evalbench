@@ -53,3 +53,6 @@ scorers:
 reporting:
   csv:
     output_directory: 'results'
+  bigquery:
+    gcp_project_id: cloud-db-nl2sql
+  truncate_execution_outputs: 250

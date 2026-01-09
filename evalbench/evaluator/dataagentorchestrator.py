@@ -133,7 +133,7 @@ class DataAgentOrchestrator(Orchestrator):
     ):
         total_eval_outputs = []
         total_scoring_results = []
-
+        self.config["dialect"] = dialect
         try:
             # Setup the core connection just once (for all query types in database)
             core_db = databases.get_database(db_config, database)
@@ -149,7 +149,7 @@ class DataAgentOrchestrator(Orchestrator):
             global_models, self.config["model_config"], core_db
         )
 
-        for query_type in ["dql", "dml", "ddl"]:
+        for query_type in ["dql"]:
             if query_type not in sub_datasets[dialect][database]:
                 continue
             sub_dataset = sub_datasets[dialect][database][query_type]
