@@ -8,6 +8,7 @@ from scorers import setmatcher
 from scorers import llmrater
 from scorers import returnedsql
 from scorers import executablesql
+from scorers import trajectorymatcher
 from dataset.evaloutput import EvalOutput
 import logging
 
@@ -42,9 +43,12 @@ def compare(
         )
     if "returned_sql" in scorers:
         comparators.append(returnedsql.ReturnedSQL(scorers["returned_sql"]))
-    if "executable_sql" in scorers:
         comparators.append(
             executablesql.ExecutableGenerationScore(scorers["executable_sql"])
+        )
+    if "trajectory_matcher" in scorers:
+        comparators.append(
+            trajectorymatcher.TrajectoryMatcher(scorers["trajectory_matcher"])
         )
 
     for comp in comparators:
