@@ -23,6 +23,8 @@ orchestrator: 'dataagent'
 ############################################################
 # The YAML config for the model to be used for generation.
 model_config: datasets/model_configs/querydata_model.yaml
+vuser_model_config: datasets/model_configs/gemini_2.5_pro_model.yaml
+
 # The prompt generator module id for prompt generation.
 prompt_generator: 'NOOPGenerator'
 #

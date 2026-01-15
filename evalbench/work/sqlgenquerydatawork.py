@@ -23,7 +23,12 @@ class SQLGenQueryDataWork(Work):
         sql_generator_error = None
         if self.eval_result["prompt_generator_error"] is None:
             try:
-                self.eval_result = self.generator.generate(self.eval_result)
+                result = self.generator.generate(self.eval_result)
+                if not isinstance(result, str):
+                    self.eval_result = result
+                else:
+                    self.eval_result["generated_sql"] = None
+                    self.eval_result["sql_generator_error"] = "No result generated"
             except Exception as e:
                 import traceback
 
