@@ -43,6 +43,7 @@ def compare(
         )
     if "returned_sql" in scorers:
         comparators.append(returnedsql.ReturnedSQL(scorers["returned_sql"]))
+    if "executable_sql" in scorers:
         comparators.append(
             executablesql.ExecutableGenerationScore(scorers["executable_sql"])
         )
