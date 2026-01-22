@@ -23,6 +23,7 @@ from util.interactutil import check_response, print_interact, write_item, read_i
 from util import truncateExecutionOutputs
 import logging
 import json
+import base64
 
 
 class DataAgentEvaluator:
@@ -123,6 +124,7 @@ class DataAgentEvaluator:
         scoring_results,
     ):
         eval_output["terminate_flag"] = False
+        eval_output["preprocess_sql"] = eval_output["payload"]["preprocess_sql"]
         max_turn = eval_output["payload"]["max_turn"]
         eval_output["step_type"] = InteractionType.INIT
         next_step = InteractionType.LLM_QUESTION_PROMPT
@@ -135,6 +137,8 @@ class DataAgentEvaluator:
             if next_step == InteractionType.LLM_QUESTION_PROMPT:
                 eval_output["nl_prompt"] = eval_output["payload"]["prompt"]
                 eval_output["payload"]["turn"] = eval_output["payload"]["turn"] + 1
+                turn = eval_output["payload"]["turn"]
+                eval_output[f"user_turn_{turn}"] = eval_output["payload"]["prompt"]
                 eval_output["step_type"] = InteractionType.LLM_QUESTION_PROMPT
                 work = promptgenwork.SQLPromptGenWork(prompt_generator, eval_output)
                 eval_output = work.run()
@@ -151,6 +155,8 @@ class DataAgentEvaluator:
                 eval_output = work.run()
                 if eval_output["sql_generator_error"] is None:
                     record_successful_sql_gen(progress_reporting)
+                    turn = eval_output["payload"]["turn"]
+                    eval_output[f"system_turn_{turn}"] = eval_output["nl_response"]
                     if "disambiguation_question" not in eval_output:
                         eval_output["disambiguation_question"] = None
                     if eval_output["disambiguation_question"] is None:
@@ -177,6 +183,7 @@ class DataAgentEvaluator:
                     db_queue.get(), self.config, eval_output, db_queue
                 )
                 eval_output = work.run()
+                record_successful_sql_exec(progress_reporting)
                 next_step = InteractionType.SCORE
 
             if next_step == InteractionType.SCORE:
@@ -184,9 +191,14 @@ class DataAgentEvaluator:
                     self.config, eval_output, scoring_results, global_models
                 )
                 eval_output = work.run()
+                record_successful_scoring(progress_reporting)
                 next_step = InteractionType.COMPLETE
 
             if next_step == InteractionType.COMPLETE:
                 self.trace_conversation(eval_output, eval_output["id"])
+                payload = json.dumps(eval_output, default=str)
+                payload = payload.encode("utf-8")
+                payload = base64.b64encode(payload)
+                eval_output["payload"] = payload.decode("utf-8")
                 eval_outputs.append(eval_output)
                 return eval_outputs
