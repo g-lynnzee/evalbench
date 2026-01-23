@@ -28,7 +28,7 @@ The question from your client maybe about existing labeled Ambiguity Points abov
 # Ask for Clarification Question:
 [[clarification_Q]]
 ---
-**Remember**: You MUST choose only **one action** listed above. You should NOT tell your client any thoughts about solution nor any ground-truth SQL information. 
+**Remember**: You MUST choose only **one action** listed above. You should NOT tell your client any thoughts about solution nor any ground-truth SQL information.
 
 # Action Chosen:
 """
