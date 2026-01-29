@@ -23,6 +23,7 @@ def get_id_token(audience):
 
     return token
 
+
 class EvalbenchClient:
     def __init__(self, endpoint: str):
         self.endpoint = endpoint
