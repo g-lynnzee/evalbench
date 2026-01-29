@@ -107,12 +107,12 @@ async def run(experiment: str, endpoint: str) -> None:
     response = await evalbenchclient.set_evalconfig(experiment)
     logger.info(f"get_evalinput Returned: {response.response}")
 
-    # evalInputs = []
-    # async for response in evalbenchclient.get_evalinputs():
-    #     evalInputs.append(response)
-    # logger.info(f"evalInputs: {len(evalInputs)}")
-    # response = await evalbenchclient.eval(evalInputs)
-    # logger.info(f"eval Returned: {response.response}")
+    evalInputs = []
+    async for response in evalbenchclient.get_evalinputs():
+        evalInputs.append(response)
+    logger.info(f"evalInputs: {len(evalInputs)}")
+    response = await evalbenchclient.eval(evalInputs)
+    logger.info(f"eval Returned: {response.response}")
 
 
 async def main():
