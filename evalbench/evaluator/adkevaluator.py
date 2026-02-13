@@ -1,6 +1,7 @@
 from typing import Any, List
 import datetime
 from dataset.evaladkinput import EvalADKRequest
+from dataset.evaladkoutput import EvalADKOutput
 from queue import Queue
 from databases import DB
 import logging
@@ -45,11 +46,17 @@ class ADKEvaluator:
         eval_outputs: List[Any] = []
         scoring_results: List[Any] = []
         logging.info("Running ADK evaluation")
-        self._evaluate()
+        for eval_input in dataset:
+            self._evaluate(eval_input, eval_outputs, job_id, run_time, scoring_results)
         return eval_outputs, scoring_results
 
     def _evaluate(
         self,
+        eval_input: EvalADKRequest,
+        eval_outputs: List[Any],
+        job_id: str,
+        run_time: datetime.datetime,
+        scoring_results: List[Any],
         num_runs: int = 1,
     ):
         test_files = [self.eval_dataset_file]
@@ -57,23 +64,31 @@ class ADKEvaluator:
         initial_session = AgentEvaluator._get_initial_session(self.initial_session_file)
 
         for test_file in test_files:
+            eval_output = EvalADKOutput(eval_input)
+            eval_output["job_id"] = job_id
+            eval_output["run_time"] = run_time
+            eval_output["test_file"] = test_file
             eval_config = AgentEvaluator.find_config_for_test_file(test_file)
             eval_set = AgentEvaluator._load_eval_set_from_file(
                 test_file, eval_config, initial_session
             )
-
-        asyncio.run(
-            self.evaluate_eval_set(
-                agent_module=self.agent_module,
-                eval_set=eval_set,
-                eval_config=eval_config,
-                num_runs=num_runs,
-                agent_name=self.agent_name,
+            eval_output["eval_set"] = eval_set
+            asyncio.run(
+                self.evaluate_eval_set(
+                    eval_output,
+                    scoring_results,
+                    agent_module=self.agent_module,
+                    eval_set=eval_set,
+                    eval_config=eval_config,
+                    num_runs=num_runs,
+                    agent_name=self.agent_name,
+                )
             )
-        )
 
     async def evaluate_eval_set(
         self,
+        eval_output: EvalADKOutput,
+        scoring_results: List[Any],
         agent_module: str,
         eval_set: EvalSet,
         criteria: Optional[dict[str, float]] = None,
@@ -98,6 +113,7 @@ class ADKEvaluator:
             user_simulator_provider=user_simulator_provider,
         )
         self.process_results(eval_results_by_eval_id)
+        eval_output["eval_results_by_eval_id"] = eval_results_by_eval_id
         return eval_results_by_eval_id
 
     def merge_parts(self, parts: list[Part]):

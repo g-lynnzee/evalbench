@@ -8,6 +8,7 @@ from scorers import setmatcher
 from scorers import llmrater
 from scorers import returnedsql
 from scorers import executablesql
+from scorers import adkscorer
 from dataset.evaloutput import EvalOutput
 import logging
 
@@ -46,6 +47,8 @@ def compare(
         comparators.append(
             executablesql.ExecutableGenerationScore(scorers["executable_sql"])
         )
+    if "adk_scorer" in scorers:
+        comparators.append(adkscorer.ADKScorer(scorers["adk_scorer"]))
 
     for comp in comparators:
         score = 0
