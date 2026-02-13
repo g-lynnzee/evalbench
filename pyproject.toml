@@ -1,4 +1,49 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
-name = "Evalbench"
+name = "evalbench"
 version = "1.0.0"
 requires-python = ">=3.10"
+description = "Evalbench - evaluation benchmarking framework"
+readme = "README.md"
+license = {file = "LICENSE"}
+dependencies = [
+    "cloud-sql-python-connector[pg8000]",
+    "google-cloud-alloydb-connector[pg8000]",
+    "cloud-sql-python-connector[pytds]",
+    "sqlalchemy-pytds",
+    "google-genai",
+    "google-cloud-secret-manager",
+    "google-cloud-bigtable",
+    "google-cloud-spanner",
+    "sqlalchemy-spanner",
+    "pandas",
+    "pandas-gbq",
+    "pymysql",
+    "sqlalchemy",
+    "pyaml_env",
+    "pyarrow",
+    "protobuf",
+    "absl-py",
+    "tabulate",
+    "grpcio",
+    "grpcio-tools",
+    "aiologger",
+    "jsonschema",
+    "ratelimit",
+    "backoff",
+    "GitPython",
+    "sqlparse",
+    "redis",
+    "anthropic[vertex]",
+    "sqlglot",
+    "pymongo",
+    "mongomock",
+    "rich",
+    "google-adk",
+]
+
+[tool.setuptools.packages.find]
+include = ["evalbench*"]
