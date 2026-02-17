@@ -15,7 +15,8 @@ logging.getLogger().setLevel(logging.INFO)
 
 
 def load_yaml_config(yaml_file):
-    config = parse_config(yaml_file)
+    current_directory = os.getcwd()
+    config = parse_config(os.path.join(current_directory, yaml_file))
     return config
 
 
@@ -27,12 +28,15 @@ def load_textproto(textproto_file, text_proto_object):
 
 def load_db_data_from_csvs(data_directory: str):
     tables: dict[str, List[str]] = {}
-    if not os.path.isdir(data_directory):
+    current_directory = os.getcwd()
+    if not os.path.isdir(os.path.join(current_directory, data_directory)):
         return tables
-    for filename in os.listdir(data_directory):
+    for filename in os.listdir(os.path.join(current_directory, data_directory)):
         if filename.endswith(".csv"):
             table_name = filename[:-4]
-            with open(os.path.join(data_directory, filename), "r") as csvfile:
+            with open(
+                os.path.join(current_directory, data_directory, filename), "r"
+            ) as csvfile:
                 reader = csv.reader(csvfile)
                 rows = []
                 for row in reader:
@@ -42,22 +46,28 @@ def load_db_data_from_csvs(data_directory: str):
 
 
 def load_setup_scripts(setup_scripts_directory_path: str):
+    current_directory = os.getcwd()
     pre_setup = _load_setup_sql(
-        os.path.join(setup_scripts_directory_path, "pre_setup.sql"),
+        os.path.join(current_directory, setup_scripts_directory_path, "pre_setup.sql"),
     )
     setup = _load_setup_sql(
-        os.path.join(setup_scripts_directory_path, "setup.sql"),
+        os.path.join(current_directory, setup_scripts_directory_path, "setup.sql"),
     )
     # Check for setup.json and append it if exists
-    setup_json_path = os.path.join(setup_scripts_directory_path, "setup.json")
+    setup_json_path = os.path.join(
+        current_directory, setup_scripts_directory_path, "setup.json"
+    )
     if os.path.exists(setup_json_path):
         with open(setup_json_path, "r") as f:
             setup.append(f.read())
 
     # Check for post_setup.json
-    post_setup_json_path = os.path.join(setup_scripts_directory_path, "post_setup.json")
+    post_setup_json_path = os.path.join(
+        current_directory, setup_scripts_directory_path, "post_setup.json"
+    )
     if os.path.exists(post_setup_json_path):
         import json
+
         with open(post_setup_json_path, "r") as f:
             # Load as list of dicts, then convert back to strings for batch_execute
             try:
@@ -70,7 +80,9 @@ def load_setup_scripts(setup_scripts_directory_path: str):
                 post_setup = []
     else:
         post_setup = _load_setup_sql(
-            os.path.join(setup_scripts_directory_path, "post_setup.sql"),
+            os.path.join(
+                current_directory, setup_scripts_directory_path, "post_setup.sql"
+            ),
         )
     return (pre_setup, setup, post_setup)
 

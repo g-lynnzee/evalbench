@@ -31,7 +31,7 @@ _EXPERIMENT_CONFIG = flags.DEFINE_string(
 )
 
 
-def main(argv: Sequence[str]):
+def eval(experiment_config: str):
     try:
         logging.info("EvalBench v1.0.0")
         logging.getLogger("google_genai.models").setLevel(logging.WARNING)
@@ -39,7 +39,7 @@ def main(argv: Sequence[str]):
         os.environ["GRPC_VERBOSITY"] = "NONE"
         session: dict = {}
 
-        parsed_config = load_yaml_config(_EXPERIMENT_CONFIG.value)
+        parsed_config = load_yaml_config(experiment_config)
         if parsed_config == "":
             logging.error("No Eval Config Found.")
             return
@@ -47,7 +47,7 @@ def main(argv: Sequence[str]):
         set_session_configs(session, parsed_config)
         # Load the configs
         config, db_configs, model_config, setup_config = load_session_configs(session)
-        logging.info("Loaded Configurations in %s", _EXPERIMENT_CONFIG.value)
+        logging.info("Loaded Configurations in %s", experiment_config)
 
         # Load the dataset
         dataset = load_dataset_from_json(session["dataset_config"], config)
@@ -97,6 +97,8 @@ def main(argv: Sequence[str]):
             return sys.exit(0)
         return os._exit(0)
 
+def main(argv: Sequence[str]):
+    eval(experiment_config=_EXPERIMENT_CONFIG.value)
 
 if __name__ == "__main__":
     app.run(main)
