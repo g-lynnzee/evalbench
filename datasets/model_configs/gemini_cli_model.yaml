@@ -8,7 +8,7 @@ setup:
   mcp_servers:
     "cloud-sql":
       args:
-        - "https://int-145-sqladmin.sandbox.googleapis.com/mcp"
+        - "https://sqladmin.googleapis.com/mcp"
   # extensions:
   #   "https://github.com/gemini-cli-extensions/cloud-sql-postgresql":
   #     settings:
