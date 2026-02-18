@@ -28,12 +28,14 @@ class GeminiGenerator(QueryGenerator):
     def generate_internal(self, prompt):
         logger = logging.getLogger(__name__)
         try:
+            print(f"Generating SQL for prompt: {prompt}")
             response = self.client.models.generate_content(
                 model=self.vertex_model,
                 contents=self.base_prompt + prompt,
             )
             if isinstance(response, GenerateContentResponse):
                 r = sanitize_sql(response.text)
+            print(f"Generated SQL: {r}")
             return r
         except ResourceExhausted as e:
             raise ResourceExhaustedError(e)
