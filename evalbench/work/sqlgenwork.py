@@ -40,6 +40,7 @@ class SQLGenWork(Work):
                     end_time = time.time()
                     self.eval_result["sql_generator_time"] = end_time - start_time
                 except Exception as e:
+                    print(f"Error generating SQL: {e}")
                     sql_generator_error = str(e)
 
         self.eval_result["generated_sql"] = generated_sql
