@@ -200,7 +200,6 @@ def skip_database(sub_datasets, progress_reporting, query_type):
         )
     with progress_reporting["lock"]:
         progress_reporting["total_dbs"] -= total_dbs
-        progress_reporting["total"] -= evals_in_db
 
 
 def record_successful_prompt_gen(progress_reporting):
@@ -270,6 +269,8 @@ def report_progress(
         fill        - Optional  : bar fill character (Str)
         printEnd    - Optional  : end character (e.g. "\r", "\r\n") (Str)
     """
+    if total == 0:
+        total = 1
     percent = ("{0:." + str(decimals) + "f}").format(100 * (iteration / float(total)))
     filledLength = int(length * iteration // total)
     bar = fill * filledLength + "-" * (length - filledLength)
