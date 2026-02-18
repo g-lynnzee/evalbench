@@ -97,8 +97,10 @@ def eval(experiment_config: str):
             return sys.exit(0)
         return os._exit(0)
 
+
 def main(argv: Sequence[str]):
     eval(experiment_config=_EXPERIMENT_CONFIG.value)
+
 
 if __name__ == "__main__":
     app.run(main)
