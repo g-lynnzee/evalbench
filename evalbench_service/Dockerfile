@@ -28,6 +28,8 @@ RUN mkdir /tmp_session_files
 RUN chown -R 65532:65532 /evalbench /tmp /tmp_session_files
 
 RUN pip install --no-cache-dir -r requirements.txt --break-system-packages
-
+RUN ln -s /root/.nvm/versions/node/v24.14.0/bin/npm /usr/bin/npm
+RUN ln -s /root/.nvm/versions/node/v24.14.0/bin/node /usr/bin/node
+RUN ln -s /root/.nvm/versions/node/v24.14.0/bin/npx /usr/bin/npx
 CMD ["/evalbench/run_service.sh"]
 EXPOSE 50051
