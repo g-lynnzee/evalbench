@@ -28,6 +28,7 @@ class EvalInputRequest:
         generated_sql: str = "",
         job_id: str = "",
         trace_id: str = "",
+        payload: str = "",
     ):
         """Initializes an EvalInputRequest object with all required fields.
 
@@ -49,6 +50,7 @@ class EvalInputRequest:
         self.generated_sql = generated_sql
         self.job_id = job_id
         self.trace_id = trace_id
+        self.payload = payload
 
     if PROTO_IMPORTED:
 
@@ -74,6 +76,7 @@ class EvalInputRequest:
                 generated_sql=request.get("generatedSql") or "",
                 job_id=request.get("jobId") or "",
                 trace_id=request.get("traceId") or "",
+                payload=request.get("payload") or "",
             )
 
         def to_proto(self):  # type: ignore
@@ -89,6 +92,12 @@ class EvalInputRequest:
                 cleanup_sql=self._set_dialect_based_sql(self.cleanup_sql),
                 tags=self.tags,
                 other=self.other,
+                sql_generator_error=self.sql_generator_error,
+                sql_generator_time=self.sql_generator_time,
+                generated_sql=self.generated_sql,
+                job_id=self.job_id,
+                trace_id=self.trace_id,
+                payload=self.payload,
             )
 
         def _set_dialect_based_sql(self, dialect_based_sql):

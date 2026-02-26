@@ -96,15 +96,17 @@ def load_bird_interact_dataset(json_file_path, config):
 
 
 def load_gemini_cli_json(json_file_path):
-    all_items = []
+    all_items: dict[str, list[EvalGeminiCliRequest]] = {
+        "gemini-cli-format": [],
+    }    
     with open(json_file_path, "r") as json_file:
         json_item = json_file.read()
         item = json.loads(json_item)
         eval_input = EvalGeminiCliRequest(
-            id=item.get("id", "gemini-cli-eval"),
+            id=item.get("id", "0"),
             payload=json_item,
         )
-        all_items.append(eval_input)
+        all_items["gemini-cli-format"].extend([eval_input])
     return all_items
 
 

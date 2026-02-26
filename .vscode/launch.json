@@ -8,12 +8,11 @@
       "name": "Server",
       "type": "debugpy",
       "cwd": "${workspaceFolder}",
+      "python": "${workspaceFolder}/venv/bin/python",
       "env": {
         "PYTHONPATH": "${workspaceFolder}/evalbench:${workspaceFolder}/evalbench/evalproto"
       },
-      "args": [
-        "--localhost",
-      ],
+      "args": [],
       "request": "launch",
       "program": "${workspaceFolder}/evalbench/eval_server.py",
       "console": "integratedTerminal"
