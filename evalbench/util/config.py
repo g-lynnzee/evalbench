@@ -128,6 +128,36 @@ def config_to_df(
     return df
 
 
+def df_to_config(df: pd.DataFrame) -> dict:
+    import ast
+
+    original_dict = {}
+
+    for _, row in df.iterrows():
+        key_path = row["config"]
+        value_str = row["value"]
+
+        try:
+            if pd.isna(value_str):
+                value = None
+            else:
+                value = ast.literal_eval(value_str)
+        except (ValueError, SyntaxError, TypeError):
+            value = value_str
+
+        keys = key_path.split(".")
+
+        current_level = original_dict
+        for key in keys[:-1]:
+            if key not in current_level:
+                current_level[key] = {}
+            current_level = current_level[key]
+
+        current_level[keys[-1]] = value
+
+    return original_dict
+
+
 def update_google3_relative_paths(experiment_config: dict, session_id: str):
     if isinstance(experiment_config, dict):
         for key, value in experiment_config.items():
