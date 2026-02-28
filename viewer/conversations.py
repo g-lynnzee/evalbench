@@ -1,0 +1,297 @@
+import mesop as me
+import os
+import pandas as pd
+from typing import Callable
+
+
+def conversations_component(
+    results_dir: str,
+    conversation_index: int = 0,
+    on_prev: Callable | None = None,
+    on_next: Callable | None = None,
+):
+    me.text(
+        "Conversations",
+        style=me.Style(
+            font_size="24px", font_weight="bold", margin=me.Margin(bottom="20px")
+        ),
+    )
+
+    evals_path = os.path.join(results_dir, "evals.csv")
+
+    if os.path.exists(evals_path):
+        import json
+
+        try:
+            df = pd.read_csv(evals_path)
+            if "conversation_history" in df.columns:
+                histories = df["conversation_history"].dropna().tolist()
+
+                if not histories:
+                    me.text(
+                        "The evals.csv file does not contain any valid 'conversation_history' entries."
+                    )
+                else:
+                    total = len(histories)
+                    idx = max(0, min(conversation_index, total - 1))
+
+                    eval_id = (
+                        df["eval_id"].iloc[idx] if "eval_id" in df.columns else str(idx)
+                    )
+
+                    # Navigation header
+                    with me.box(
+                        style=me.Style(
+                            display="flex",
+                            flex_direction="row",
+                            align_items="center",
+                            gap="12px",
+                            margin=me.Margin(bottom="16px"),
+                        )
+                    ):
+                        me.button(
+                            "←",
+                            on_click=on_prev,
+                            disabled=(idx == 0 or on_prev is None),
+                            style=me.Style(font_size="20px"),
+                        )
+                        me.text(
+                            f"Conversation {idx + 1} of {total}  (Eval ID: {eval_id})",
+                            style=me.Style(color="#4b5563", font_weight="500"),
+                        )
+                        me.button(
+                            "→",
+                            on_click=on_next,
+                            disabled=(idx == total - 1 or on_next is None),
+                            style=me.Style(font_size="20px"),
+                        )
+
+                    history_str = histories[idx]
+
+                    # Side-by-side: chat (left, flex:1) | scores 3-col (right, 40%)
+                    with me.box(
+                        style=me.Style(
+                            display="flex",
+                            flex_direction="row",
+                            gap="20px",
+                            align_items="flex-start",
+                        )
+                    ):
+                        # --- Chat (left) ---
+                        with me.box(
+                            style=me.Style(
+                                flex="1",
+                                display="flex",
+                                flex_direction="column",
+                                gap="16px",
+                                padding=me.Padding.all("20px"),
+                                background="#f9fafb",
+                                border_radius="12px",
+                                border=me.Border.all(
+                                    me.BorderSide(
+                                        width="1px", color="#e5e7eb", style="solid"
+                                    )
+                                ),
+                            )
+                        ):
+                            try:
+                                history_list = json.loads(history_str)
+                                for turn in history_list:
+                                    if "user" in turn:
+                                        with me.box(
+                                            style=me.Style(
+                                                display="flex",
+                                                justify_content="flex-end",
+                                                width="100%",
+                                            )
+                                        ):
+                                            with me.box(
+                                                style=me.Style(
+                                                    background="#3b82f6",
+                                                    color="#ffffff",
+                                                    padding=me.Padding.symmetric(
+                                                        vertical="12px",
+                                                        horizontal="16px",
+                                                    ),
+                                                    border_radius="12px",
+                                                    max_width="80%",
+                                                    box_shadow="0 1px 2px 0 rgba(0,0,0,0.05)",
+                                                )
+                                            ):
+                                                me.markdown(turn["user"])
+
+                                    if "agent" in turn:
+                                        agent_content = turn["agent"]
+                                        try:
+                                            agent_data = json.loads(agent_content)
+                                            if "response" in agent_data:
+                                                agent_content = agent_data["response"]
+                                        except Exception:
+                                            pass
+
+                                        with me.box(
+                                            style=me.Style(
+                                                display="flex",
+                                                justify_content="flex-start",
+                                                width="100%",
+                                            )
+                                        ):
+                                            with me.box(
+                                                style=me.Style(
+                                                    background="#ffffff",
+                                                    color="#1f2937",
+                                                    padding=me.Padding.symmetric(
+                                                        vertical="12px",
+                                                        horizontal="16px",
+                                                    ),
+                                                    border_radius="12px",
+                                                    border=me.Border.all(
+                                                        me.BorderSide(
+                                                            width="1px",
+                                                            color="#e5e7eb",
+                                                            style="solid",
+                                                        )
+                                                    ),
+                                                    max_width="80%",
+                                                    box_shadow="0 1px 2px 0 rgba(0,0,0,0.05)",
+                                                )
+                                            ):
+                                                me.text(
+                                                    "Agent",
+                                                    style=me.Style(
+                                                        font_weight="bold",
+                                                        font_size="12px",
+                                                        color="#6b7280",
+                                                        margin=me.Margin(bottom="4px"),
+                                                    ),
+                                                )
+                                                me.markdown(agent_content)
+                            except Exception as parse_e:
+                                me.text(f"Error parsing JSON: {parse_e}")
+                                me.code(history_str)
+
+                        # --- Scores panel (right, 3 columns) ---
+                        with me.box(
+                            style=me.Style(
+                                width="40%",
+                                flex_shrink="0",
+                                display="flex",
+                                flex_direction="column",
+                                gap="8px",
+                            )
+                        ):
+                            scores_path = os.path.join(results_dir, "scores.csv")
+                            if os.path.exists(scores_path):
+                                try:
+                                    scores_df = pd.read_csv(scores_path)
+                                    if "id" in scores_df.columns:
+                                        row_scores = scores_df[
+                                            scores_df["id"] == eval_id
+                                        ]
+                                        if not row_scores.empty:
+                                            me.text(
+                                                "Scores",
+                                                style=me.Style(
+                                                    font_size="15px",
+                                                    font_weight="600",
+                                                    margin=me.Margin(bottom="6px"),
+                                                ),
+                                            )
+                                            with me.box(
+                                                style=me.Style(
+                                                    display="flex",
+                                                    flex_direction="row",
+                                                    flex_wrap="wrap",
+                                                    gap="8px",
+                                                )
+                                            ):
+                                                for (
+                                                    _,
+                                                    score_row,
+                                                ) in row_scores.iterrows():
+                                                    comparator = score_row.get(
+                                                        "comparator", "metric"
+                                                    )
+                                                    score = score_row.get("score", None)
+                                                    logs = score_row.get(
+                                                        "comparison_logs", ""
+                                                    )
+                                                    score_val = (
+                                                        float(score)
+                                                        if score == score
+                                                        else None
+                                                    )
+                                                    color = (
+                                                        "#10b981"
+                                                        if score_val and score_val >= 80
+                                                        else (
+                                                            "#ef4444"
+                                                            if score_val
+                                                            and score_val < 40
+                                                            else "#f59e0b"
+                                                        )
+                                                    )
+                                                    # ~33% of the panel width for 3-col layout
+                                                    with me.box(
+                                                        style=me.Style(
+                                                            width="calc(33.333% - 6px)",
+                                                            background="#ffffff",
+                                                            border_radius="10px",
+                                                            border=me.Border.all(
+                                                                me.BorderSide(
+                                                                    width="1px",
+                                                                    color="#e5e7eb",
+                                                                    style="solid",
+                                                                )
+                                                            ),
+                                                            padding=me.Padding.all(
+                                                                "12px"
+                                                            ),
+                                                            box_shadow="0 1px 3px rgba(0,0,0,0.06)",
+                                                        )
+                                                    ):
+                                                        me.text(
+                                                            comparator,
+                                                            style=me.Style(
+                                                                font_weight="600",
+                                                                font_size="12px",
+                                                                color="#374151",
+                                                                margin=me.Margin(
+                                                                    bottom="4px"
+                                                                ),
+                                                            ),
+                                                        )
+                                                        if score_val is not None:
+                                                            me.text(
+                                                                f"{score_val:.0f}",
+                                                                style=me.Style(
+                                                                    font_weight="700",
+                                                                    font_size="22px",
+                                                                    color=color,
+                                                                ),
+                                                            )
+                                                        if logs and str(logs) != "nan":
+                                                            me.text(
+                                                                str(logs)[:150]
+                                                                + (
+                                                                    "…"
+                                                                    if len(str(logs))
+                                                                    > 150
+                                                                    else ""
+                                                                ),
+                                                                style=me.Style(
+                                                                    font_size="10px",
+                                                                    color="#6b7280",
+                                                                ),
+                                                            )
+                                except Exception as scores_e:
+                                    me.text(f"Error reading scores: {scores_e}")
+
+            else:
+                me.text(
+                    "The evals.csv file does not contain a 'conversation_history' column."
+                )
+        except Exception as e:
+            me.text(f"Error reading evals.csv: {e}")
+    else:
+        me.text(f"No evals.csv file found in {results_dir}.")
