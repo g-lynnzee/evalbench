@@ -34,6 +34,8 @@ build-test:
 
 container:
 	$(CONTAINER_ENGINE) run --rm --name=evalbench_container \
+		$(if $(filter podman,$(CONTAINER_ENGINE)),--sysctl net.ipv6.conf.all.disable_ipv6=1) \
+		$(if $(filter docker,$(CONTAINER_ENGINE)),--net=host) \
 		-v ~/.config/gcloud:/root/.config/gcloud \
 		-e GOOGLE_CLOUD_PROJECT=cloud-db-nl2sql \
 		--cap-add=SYS_PTRACE	\
@@ -44,7 +46,9 @@ container:
 
 shell:
 	$(CONTAINER_ENGINE) run -ti --rm --name=evalbench_container \
-		--cap-add=SYS_PTRACE	\
+		$(if $(filter podman,$(CONTAINER_ENGINE)),--sysctl net.ipv6.conf.all.disable_ipv6=1) \
+		$(if $(filter docker,$(CONTAINER_ENGINE)),--net=host) \
+		--cap-add=SYS_PTRACE \
 		-v ~/.config/gcloud:/root/.config/gcloud \
 		-v $(PWD)/requirements.txt:/evalbench/requirements.txt \
 		-v $(PWD)/evalbench:/evalbench/evalbench \
