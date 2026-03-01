@@ -88,7 +88,8 @@ class EvalServicer(eval_service_pb2_grpc.EvalServiceServicer):
         experiment_config = yaml.safe_load(request.yaml_config.decode("utf-8"))
         session = SESSIONMANAGER.get_session(rpc_id_var.get())
         SESSIONMANAGER.write_resource_files(rpc_id_var.get(), request.resources)
-        update_google3_relative_paths(experiment_config, rpc_id_var.get())
+        resource_map = {r.address: r.address for r in request.resources}
+        update_google3_relative_paths(experiment_config, rpc_id_var.get(), resource_map)
         set_session_configs(session, experiment_config)
         return eval_response_pb2.EvalResponse(response=f"ack")
 
@@ -133,7 +134,9 @@ class EvalServicer(eval_service_pb2_grpc.EvalServiceServicer):
             model_config,
             db_configs,
         )
-        logging.info(f"Finished Job ID {job_id} Thread count:{threading.active_count()}")
+        logging.info(
+            f"Finished Job ID {job_id} Thread count:{threading.active_count()}"
+        )
         return eval_response_pb2.EvalResponse(response=f"{job_id}")
 
 
