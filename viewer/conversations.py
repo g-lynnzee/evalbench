@@ -227,16 +227,6 @@ def conversations_component(
                                                             if pd.notna(score)
                                                             else None
                                                         )
-                                                        color = (
-                                                            "#10b981"
-                                                            if score_val and score_val >= 80
-                                                            else (
-                                                                "#ef4444"
-                                                                if score_val
-                                                                and score_val < 40
-                                                                else "#f59e0b"
-                                                            )
-                                                        )
                                                         unit_str = f" {unit}" if unit and str(unit) != "nan" else ""
                                                         score_str = f"{score_val:.0f}{unit_str}" if score_val is not None else ""
 
