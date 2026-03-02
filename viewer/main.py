@@ -53,7 +53,17 @@ class State:
     conversation_index: int = 0
 
 
-@me.page(path="/")
+@me.page(
+    path="/",
+    stylesheets=[
+        "data:text/css;charset=utf-8,"
+        ".mdc-tooltip__surface%20%7B%0A"
+        "%20%20max-height%3A%20none%20%21important%3B%0A"
+        "%20%20max-width%3A%20none%20%21important%3B%0A"
+        "%20%20white-space%3A%20pre-wrap%20%21important%3B%0A"
+        "%7D"
+    ]
+)
 def app():
     state = me.state(State)
 
@@ -99,12 +109,14 @@ def app():
             gap="16px",
         )
     ):
-        me.select(
-            label="Select a result directory",
-            options=[me.SelectOption(label=d, value=d) for d in sorted(directories)],
-            on_selection_change=on_selection_change,
-            value=state.selected_directory,
-        )
+        with me.box(style=me.Style(width="100%", max_width="400px", margin=me.Margin(bottom="8px"))):
+            me.select(
+                label="Select a result directory",
+                options=[me.SelectOption(label=d, value=d) for d in sorted(directories)],
+                on_selection_change=on_selection_change,
+                value=state.selected_directory,
+                appearance="outline",
+            )
 
         if state.selected_directory:
 

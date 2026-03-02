@@ -122,8 +122,11 @@ def conversations_component(
 
                                     if "agent" in turn:
                                         agent_content = turn["agent"]
+                                        stats_str = ""
                                         try:
                                             agent_data = json.loads(agent_content)
+                                            if "stats" in agent_data:
+                                                stats_str = json.dumps(agent_data["stats"], indent=2)
                                             if "response" in agent_data:
                                                 agent_content = agent_data["response"]
                                         except Exception:
@@ -136,36 +139,37 @@ def conversations_component(
                                                 width="100%",
                                             )
                                         ):
-                                            with me.box(
-                                                style=me.Style(
-                                                    background="#ffffff",
-                                                    color="#1f2937",
-                                                    padding=me.Padding.symmetric(
-                                                        vertical="12px",
-                                                        horizontal="16px",
-                                                    ),
-                                                    border_radius="12px",
-                                                    border=me.Border.all(
-                                                        me.BorderSide(
-                                                            width="1px",
-                                                            color="#e5e7eb",
-                                                            style="solid",
-                                                        )
-                                                    ),
-                                                    max_width="80%",
-                                                    box_shadow="0 1px 2px 0 rgba(0,0,0,0.05)",
-                                                )
-                                            ):
-                                                me.text(
-                                                    "Agent",
+                                            with me.tooltip(message=stats_str, position="right", disabled=not bool(stats_str)):
+                                                with me.box(
                                                     style=me.Style(
-                                                        font_weight="bold",
-                                                        font_size="12px",
-                                                        color="#6b7280",
-                                                        margin=me.Margin(bottom="4px"),
-                                                    ),
-                                                )
-                                                me.markdown(agent_content)
+                                                        background="#ffffff",
+                                                        color="#1f2937",
+                                                        padding=me.Padding.symmetric(
+                                                            vertical="12px",
+                                                            horizontal="16px",
+                                                        ),
+                                                        border_radius="12px",
+                                                        border=me.Border.all(
+                                                            me.BorderSide(
+                                                                width="1px",
+                                                                color="#e5e7eb",
+                                                                style="solid",
+                                                            )
+                                                        ),
+                                                        max_width="80%",
+                                                        box_shadow="0 1px 2px 0 rgba(0,0,0,0.05)",
+                                                    )
+                                                ):
+                                                    me.text(
+                                                        "Agent",
+                                                        style=me.Style(
+                                                            font_weight="bold",
+                                                            font_size="12px",
+                                                            color="#6b7280",
+                                                            margin=me.Margin(bottom="4px"),
+                                                        ),
+                                                    )
+                                                    me.markdown(agent_content)
                             except Exception as parse_e:
                                 me.text(f"Error parsing JSON: {parse_e}")
                                 me.code(history_str)
