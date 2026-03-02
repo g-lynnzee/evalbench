@@ -2,6 +2,7 @@ import mesop as me
 import os
 import pandas as pd
 from typing import Callable
+import logging
 
 
 def conversations_component(
@@ -130,7 +131,12 @@ def conversations_component(
                                             if "response" in agent_data:
                                                 agent_content = agent_data["response"]
                                         except Exception:
-                                            pass
+                                            # If the agent content is not valid JSON, fall back to displaying the raw content
+                                            # and skip stats; log at debug level for troubleshooting without breaking the UI.
+                                            logging.debug(
+                                                "Failed to parse agent content as JSON; using raw content. Content: %r",
+                                                agent_content,
+                                            )
 
                                         with me.box(
                                             style=me.Style(
