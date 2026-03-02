@@ -62,6 +62,7 @@ class State:
 
 @me.page(
     path="/",
+    title="Evalbench",
     stylesheets=[
         "data:text/css;charset=utf-8,"
         ".mdc-tooltip__surface%20%7B%0A"
