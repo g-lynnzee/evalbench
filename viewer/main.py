@@ -11,16 +11,11 @@ try:
     import dashboard
     import conversations
 except ImportError:
-    try:
-        from . import summary
-        from . import dashboard
-        from . import conversations
-    except ImportError:
-        # Optional modules could not be imported; continue without them.
-        logging.warning(
-            "Optional modules 'summary', 'dashboard', and 'conversations' "
-            "could not be imported (absolute or relative)."
-        )
+    # Optional modules could not be imported; continue without them.
+    logging.warning(
+        "Optional modules 'summary', 'dashboard', and 'conversations' "
+        "could not be imported (absolute or relative)."
+    )
 
 
 def df_to_config(df: pd.DataFrame) -> dict:
