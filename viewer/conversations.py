@@ -189,101 +189,75 @@ def conversations_component(
                                             scores_df["id"] == eval_id
                                         ]
                                         if not row_scores.empty:
-                                            me.text(
-                                                "Scores",
-                                                style=me.Style(
-                                                    font_size="15px",
-                                                    font_weight="600",
-                                                    margin=me.Margin(bottom="6px"),
-                                                ),
-                                            )
-                                            with me.box(
-                                                style=me.Style(
-                                                    display="flex",
-                                                    flex_direction="row",
-                                                    flex_wrap="wrap",
-                                                    gap="8px",
-                                                )
-                                            ):
-                                                for (
-                                                    _,
-                                                    score_row,
-                                                ) in row_scores.iterrows():
-                                                    comparator = score_row.get(
-                                                        "comparator", "metric"
+                                            with me.expansion_panel(title="Scores", expanded=True):
+                                                with me.box(
+                                                    style=me.Style(
+                                                        display="flex",
+                                                        flex_direction="column",
+                                                        gap="8px",
                                                     )
-                                                    score = score_row.get("score", None)
-                                                    logs = score_row.get(
-                                                        "comparison_logs", ""
-                                                    )
-                                                    score_val = (
-                                                        float(score)
-                                                        if score == score
-                                                        else None
-                                                    )
-                                                    color = (
-                                                        "#10b981"
-                                                        if score_val and score_val >= 80
-                                                        else (
-                                                            "#ef4444"
-                                                            if score_val
-                                                            and score_val < 40
-                                                            else "#f59e0b"
+                                                ):
+                                                    for (
+                                                        _,
+                                                        score_row,
+                                                    ) in row_scores.iterrows():
+                                                        comparator = score_row.get(
+                                                            "comparator", "metric"
                                                         )
-                                                    )
-                                                    # ~33% of the panel width for 3-col layout
-                                                    with me.box(
-                                                        style=me.Style(
-                                                            width="calc(33.333% - 6px)",
-                                                            background="#ffffff",
-                                                            border_radius="10px",
-                                                            border=me.Border.all(
-                                                                me.BorderSide(
-                                                                    width="1px",
-                                                                    color="#e5e7eb",
-                                                                    style="solid",
-                                                                )
-                                                            ),
-                                                            padding=me.Padding.all(
-                                                                "12px"
-                                                            ),
-                                                            box_shadow="0 1px 3px rgba(0,0,0,0.06)",
+                                                        score = score_row.get("score", None)
+                                                        unit = score_row.get("unit", "")
+                                                        if not unit or str(unit) == "nan":
+                                                            if comparator in ("end_to_end_latency", "tool_call_latency"):
+                                                                unit = "ms"
+                                                            elif comparator == "token_consumption":
+                                                                unit = "tokens"
+                                                            elif comparator == "turn_count":
+                                                                unit = "turns"
+                                                            elif comparator in ("trajectory_matcher", "goal_completion", "parameter_analysis", "behavioral_metrics"):
+                                                                unit = "%"
+                                                        logs = score_row.get(
+                                                            "comparison_logs", ""
                                                         )
-                                                    ):
-                                                        me.text(
-                                                            comparator,
+                                                        score_val = (
+                                                            float(score)
+                                                            if score == score
+                                                            else None
+                                                        )
+                                                        color = (
+                                                            "#10b981"
+                                                            if score_val and score_val >= 80
+                                                            else (
+                                                                "#ef4444"
+                                                                if score_val
+                                                                and score_val < 40
+                                                                else "#f59e0b"
+                                                            )
+                                                        )
+                                                        unit_str = f" {unit}" if unit and str(unit) != "nan" else ""
+                                                        score_str = f"{score_val:.0f}{unit_str}" if score_val is not None else ""
+
+                                                        # Full width for each score, now collapsible
+                                                        with me.expansion_panel(
+                                                            title=comparator,
+                                                            description=score_str,
                                                             style=me.Style(
-                                                                font_weight="600",
-                                                                font_size="12px",
-                                                                color="#374151",
-                                                                margin=me.Margin(
-                                                                    bottom="4px"
+                                                                width="100%",
+                                                                background="#ffffff",
+                                                                border_radius="10px",
+                                                                border=me.Border.all(
+                                                                    me.BorderSide(
+                                                                        width="1px",
+                                                                        color="#e5e7eb",
+                                                                        style="solid",
+                                                                    )
                                                                 ),
-                                                            ),
-                                                        )
-                                                        if score_val is not None:
-                                                            me.text(
-                                                                f"{score_val:.0f}",
-                                                                style=me.Style(
-                                                                    font_weight="700",
-                                                                    font_size="22px",
-                                                                    color=color,
-                                                                ),
+                                                                box_shadow="0 1px 3px rgba(0,0,0,0.06)",
                                                             )
-                                                        if logs and str(logs) != "nan":
-                                                            me.text(
-                                                                str(logs)[:150]
-                                                                + (
-                                                                    "…"
-                                                                    if len(str(logs))
-                                                                    > 150
-                                                                    else ""
-                                                                ),
-                                                                style=me.Style(
-                                                                    font_size="10px",
-                                                                    color="#6b7280",
-                                                                ),
-                                                            )
+                                                        ):
+                                                            if logs and str(logs) != "nan":
+                                                                with me.box(style=me.Style(padding=me.Padding.all("12px"))):
+                                                                    # Render logs inside the expansion panel when opened
+                                                                    me.markdown(logs)
                                 except Exception as scores_e:
                                     me.text(f"Error reading scores: {scores_e}")
 

@@ -27,10 +27,10 @@ def dashboard_component(results_dir: str):
     with me.box(
         style=me.Style(
             display="flex",
-            flex_direction="column",
+            flex_direction="row",
+            flex_wrap="wrap",
             gap="16px",
             width="100%",
-            max_width="800px",
         )
     ):
         for _, row in df.iterrows():
@@ -39,63 +39,38 @@ def dashboard_component(results_dir: str):
             total = row.get("total_results_count", 0)
 
             pct = (correct / total) * 100 if total > 0 else 0
+            color = (
+                "#10b981"
+                if pct >= 80
+                else ("#ef4444" if pct < 40 else "#f59e0b")
+            )
 
             with me.box(
                 style=me.Style(
-                    display="flex",
-                    flex_direction="column",
-                    gap="8px",
+                    width="calc(33.333% - 11px)",
                     background="#ffffff",
-                    padding=me.Padding.all("16px"),
-                    border_radius="12px",
+                    border_radius="10px",
                     border=me.Border.all(
                         me.BorderSide(width="1px", color="#e5e7eb", style="solid")
                     ),
-                    box_shadow="0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)",
+                    padding=me.Padding.all("12px"),
+                    box_shadow="0 1px 3px rgba(0,0,0,0.06)",
                 )
             ):
-                with me.box(
+                me.text(
+                    metric,
                     style=me.Style(
-                        display="flex",
-                        justify_content="space-between",
+                        font_weight="600",
+                        font_size="12px",
+                        color="#374151",
                         margin=me.Margin(bottom="4px"),
-                    )
-                ):
-                    me.text(
-                        metric,
-                        style=me.Style(
-                            font_weight="600", font_size="16px", color="#111827"
-                        ),
-                    )
-                    me.text(
-                        f"{correct}/{total} ({pct:.1f}%)",
-                        style=me.Style(
-                            color="#4b5563", font_weight="500", font_size="14px"
-                        ),
-                    )
-
-                with me.box(
+                    ),
+                )
+                me.text(
+                    f"{correct}/{total}",
                     style=me.Style(
-                        width="100%",
-                        height="12px",
-                        background="#f3f4f6",
-                        border_radius="6px",
-                        overflow_x="hidden",
-                    )
-                ):
-                    color = (
-                        "#3b82f6"
-                        if pct > 50
-                        else ("#ef4444" if pct < 20 else "#eab308")
-                    )
-                    if pct == 100:
-                        color = "#10b981"
-
-                    me.box(
-                        style=me.Style(
-                            width=f"{pct}%",
-                            height="100%",
-                            background=color,
-                            border_radius="6px",
-                        )
-                    )
+                        font_weight="700",
+                        font_size="22px",
+                        color=color,
+                    ),
+                )

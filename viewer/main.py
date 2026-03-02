@@ -49,7 +49,7 @@ def df_to_config(df: pd.DataFrame) -> dict:
 @me.stateclass
 class State:
     selected_directory: str
-    selected_tab: str = "Configs"
+    selected_tab: str = "Dashboard"
     conversation_index: int = 0
 
 
