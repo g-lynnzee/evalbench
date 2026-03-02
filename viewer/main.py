@@ -59,6 +59,7 @@ class State:
     path="/",
     title="Evalbench",
     stylesheets=[
+        "data:",
         "data:text/css;charset=utf-8,"
         ".mdc-tooltip__surface%20%7B%0A"
         "%20%20max-height%3A%20none%20%21important%3B%0A"
