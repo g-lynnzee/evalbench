@@ -2,6 +2,9 @@ import os
 import mesop as me
 import pandas as pd
 import yaml
+import logging
+
+logging.basicConfig(level=logging.INFO)
 
 try:
     import summary
@@ -13,7 +16,11 @@ except ImportError:
         from . import dashboard
         from . import conversations
     except ImportError:
-        pass
+        # Optional modules could not be imported; continue without them.
+        logging.warning(
+            "Optional modules 'summary', 'dashboard', and 'conversations' "
+            "could not be imported (absolute or relative)."
+        )
 
 
 def df_to_config(df: pd.DataFrame) -> dict:
