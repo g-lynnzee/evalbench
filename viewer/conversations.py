@@ -224,7 +224,7 @@ def conversations_component(
                                                         )
                                                         score_val = (
                                                             float(score)
-                                                            if score == score
+                                                            if pd.notna(score)
                                                             else None
                                                         )
                                                         color = (
