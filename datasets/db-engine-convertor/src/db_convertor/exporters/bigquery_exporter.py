@@ -1,7 +1,7 @@
 """BigQuery database exporter."""
 
 from pathlib import Path
-from typing import List, Tuple, Dict, Any
+from typing import List, Tuple, Dict
 import csv
 from google.cloud import bigquery
 from .base import DatabaseExporter

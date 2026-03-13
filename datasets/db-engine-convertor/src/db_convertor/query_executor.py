@@ -201,6 +201,8 @@ class QueryExecutor:
         @contextlib.contextmanager
         def silence_stderr():
             # Only redirect if stderr is a valid terminal/file descriptor
+            null_fd = None
+            old_stderr_fd = None
             try:
                 null_fd = os.open(os.devnull, os.O_WRONLY)
                 old_stderr_fd = os.dup(sys.stderr.fileno())
@@ -209,11 +211,14 @@ class QueryExecutor:
                     yield
                 finally:
                     os.dup2(old_stderr_fd, sys.stderr.fileno())
-                    os.close(old_stderr_fd)
-                    os.close(null_fd)
             except Exception:
                 # If we cannot redirect, just proceed normally
                 yield
+            finally:
+                if old_stderr_fd is not None:
+                    os.close(old_stderr_fd)
+                if null_fd is not None:
+                    os.close(null_fd)
 
         try:
             with silence_stderr():

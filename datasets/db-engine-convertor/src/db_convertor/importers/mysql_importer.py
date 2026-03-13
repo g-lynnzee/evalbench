@@ -5,7 +5,7 @@ import sys
 csv.field_size_limit(sys.maxsize)
 import pymysql
 from pathlib import Path
-from typing import Optional, List, Dict
+from typing import List, Dict
 from .base import DatabaseImporter
 
 
@@ -29,6 +29,7 @@ class MySQLImporter(DatabaseImporter):
             password: MySQL password
             database: Database name
         """
+        super().__init__()
         self.host = host
         self.port = int(port)
         self.user = user

@@ -1,10 +1,8 @@
 """BigQuery database importer."""
 
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List
 from google.cloud import bigquery
-from google.api_core.exceptions import GoogleAPICallError
-import time
 
 from .base import DatabaseImporter
 

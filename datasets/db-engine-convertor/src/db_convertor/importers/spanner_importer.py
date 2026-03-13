@@ -101,7 +101,6 @@ class SpannerImporter(DatabaseImporter):
         except Exception as e:
             print(f"Warning during wipe: {e}")
             # Non-fatal if empty
-            pass
 
     def create_schema(self, schema_file: Path):
         """Create schema in the database.
@@ -318,7 +317,6 @@ class SpannerImporter(DatabaseImporter):
                 )
                 # Query above is standard SQL, Spanner might differ slightly in IS structure.
                 # Fallback: simpler approach or try standard.
-                pass
         except Exception:
             pass 
         

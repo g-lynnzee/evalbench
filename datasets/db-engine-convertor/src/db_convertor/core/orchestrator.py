@@ -1,7 +1,6 @@
 """Orchestrator for managing the conversion process."""
 
 import os
-import shutil
 import json
 from pathlib import Path
 from datetime import datetime
