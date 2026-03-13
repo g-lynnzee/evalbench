@@ -42,6 +42,7 @@ def retry_on_quota_exceeded(max_attempts=30, initial_delay=1.0, backoff_factor=2
                     else:
                         logging.error(f"Final attempt failed or non-quota error: {e}")
                         raise
+            return None
         return wrapper
     return decorator
 
