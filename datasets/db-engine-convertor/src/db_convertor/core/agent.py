@@ -23,8 +23,6 @@ def get_csv_summary(csv_path: Path, num_lines=5, max_sample_rows=500,
     Returns:
         Dict with columns, total_rows, first_lines, last_lines, max_lengths
     """
-    import collections
-
     def _truncate_row(row):
         return [v[:max_cell_len] + '...' if len(v) > max_cell_len else v for v in row]
 

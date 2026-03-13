@@ -231,7 +231,7 @@ class MySQLImporter(DatabaseImporter):
                         cursor.execute(multi_sql, flat_params)
                         conn.commit()
                         rows_inserted += len(rows)
-                    except Exception as batch_exc:
+                    except Exception:
                         conn.rollback()
                         # Batch failed - retry row-by-row to find the exact bad row
                         # so the agent gets actionable error info.

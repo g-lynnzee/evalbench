@@ -1,7 +1,7 @@
 """SQLite to PostgreSQL query converter."""
 
 from typing import Optional, Tuple, List, Dict
-from .base import QueryConverter, QueryResult, ConversionStatus
+from .base import QueryConverter, QueryResult
 
 
 class SQLiteToPGQueryConverter(QueryConverter):

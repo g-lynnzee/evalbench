@@ -26,9 +26,6 @@ class SpannerImporter(DatabaseImporter):
         self.database_id = connection_config['database_id']
         
         import google.auth
-        
-        import google.auth
-        
         credentials, project = google.auth.default(quota_project_id=self.project_id)
         
         self.client = spanner.Client(project=self.project_id, credentials=credentials)
@@ -179,7 +176,6 @@ class SpannerImporter(DatabaseImporter):
             
             print(f"Loading {table_name}...")
             
-            rows_to_insert = []
             # Read CSV to get headers and data
             # Determine column types from headers is complex, 
             # Spanner insert requires matching types.
@@ -299,7 +295,7 @@ class SpannerImporter(DatabaseImporter):
         try:
             with self.database.snapshot() as snapshot:
                 # Note: Spanner information schema for constraints
-                fk_results = snapshot.execute_sql(
+                snapshot.execute_sql(
                     """
                     SELECT 
                         tc.table_name, 

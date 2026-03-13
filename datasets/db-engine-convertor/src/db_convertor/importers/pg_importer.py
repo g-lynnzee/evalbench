@@ -200,7 +200,7 @@ class PostgreSQLImporter(DatabaseImporter):
             cmd = f"psql -h {self.host} -p {self.port} -U {self.user} -d {self.database} -c \"{copy_cmd}\""
             
             try:
-                result = self._run_command(cmd, capture_output=True, check=True)
+                self._run_command(cmd, capture_output=True, check=True)
                 
                 # Count rows
                 count_cmd = f"psql -h {self.host} -p {self.port} -U {self.user} -d {self.database} -t -c \"SELECT COUNT(*) FROM {table_name}\""
@@ -208,7 +208,7 @@ class PostgreSQLImporter(DatabaseImporter):
                 row_count = count_result.stdout.strip()
                 
                 print(f"    ✓ Uploaded {row_count} rows")
-            except PipelineError as e:
+            except PipelineError:
                 print(f"    ✗ Failed to upload {csv_file.name}")
                 raise
     

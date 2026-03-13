@@ -1,7 +1,6 @@
 """SQLite to Spanner converter."""
 
 from typing import Dict, Optional
-from pathlib import Path
 from ..converters.base import DatabaseConverter
 from ..importers.spanner_importer import SpannerImporter
 from ..exporters.sqlite_exporter import SQLiteExporter
