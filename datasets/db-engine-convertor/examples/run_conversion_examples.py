@@ -18,8 +18,7 @@ import sys
 import argparse
 import subprocess
 from pathlib import Path
-from typing import Dict, Optional, List
-from datetime import datetime
+from typing import Optional, List
 from dotenv import load_dotenv
 
 

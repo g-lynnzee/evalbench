@@ -2,11 +2,8 @@
 
 from pathlib import Path
 from typing import Dict, List, Optional
-import time
 from google.cloud import spanner
-from google.api_core.exceptions import GoogleAPICallError
 import csv
-import io
 
 from .base import DatabaseImporter
 

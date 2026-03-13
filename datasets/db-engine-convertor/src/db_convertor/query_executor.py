@@ -4,8 +4,6 @@ import mysql.connector
 import logging
 import os
 import warnings
-from pathlib import Path
-from typing import List, Tuple
 from .query_converters.base import QueryResult
 
 # Silence OpenTelemetry warnings globally

@@ -1,7 +1,6 @@
 """PostgreSQL to BigQuery converter."""
 
 from typing import Dict, Optional
-from pathlib import Path
 from ..converters.base import DatabaseConverter
 from ..importers.bigquery_importer import BigQueryImporter
 from ..exporters.pg_exporter import PostgreSQLExporter
