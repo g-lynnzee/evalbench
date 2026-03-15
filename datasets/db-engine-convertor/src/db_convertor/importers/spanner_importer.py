@@ -261,7 +261,7 @@ class SpannerImporter(DatabaseImporter):
             # For simplicity let's stick to strings for complex types and let client handle if possible,
             # or add handling if we see errors.
             return value
-        except:
+        except Exception:
             # Fallback to string if cast fails
             return value
 
@@ -311,7 +311,8 @@ class SpannerImporter(DatabaseImporter):
                 # Query above is standard SQL, Spanner might differ slightly in IS structure.
                 # Fallback: simpler approach or try standard.
         except Exception:
-            pass 
+            # Exploratory FK query may fail on some Spanner configurations; safe to ignore
+            pass
         
         # Proper implementation for Spanner dependency graph:
         # We can implement a simplified version that just queries for parent tables

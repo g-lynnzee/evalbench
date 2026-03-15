@@ -227,6 +227,7 @@ Output your decision now:
                         if abs(src_num - dst_num) < 1e-6:
                             continue
                 except (ValueError, TypeError):
+                    # Non-numeric values: fall through to string comparison below
                     pass
                 
                 # String comparison
