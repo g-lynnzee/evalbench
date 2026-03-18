@@ -289,8 +289,12 @@ class MySQLImporter(DatabaseImporter):
         finally:
             try:
                 cursor.execute("SET FOREIGN_KEY_CHECKS=1")
-            except Exception:
-                pass
+            except Exception as fk_err:
+                # Best-effort attempt to re-enable foreign key checks; failures are logged but ignored
+                print(
+                    f"Warning: failed to re-enable FOREIGN_KEY_CHECKS in MySQLImporter.load_data: {fk_err}",
+                    file=sys.stderr,
+                )
             cursor.close()
             conn.close()
 
