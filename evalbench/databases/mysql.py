@@ -1,5 +1,6 @@
 import sqlalchemy
 import sqlparse
+import pymysql
 from sqlalchemy import text, MetaData
 from sqlalchemy.engine.base import Connection
 import pymysql
@@ -48,8 +49,8 @@ class MySQLDB(DB):
 
     def __init__(self, db_config):
         super().__init__(db_config)
-
-        # Auto-deduce use_cloud_sql: format is PROJECT:REGION:INSTANCE (2 colons)
+        # Auto-deduce use_cloud_sql: format is PROJECT:REGION:INSTANCE (2
+        # colons)
         self.use_cloud_sql = db_config.get("use_cloud_sql")
         if self.use_cloud_sql is None:
             self.use_cloud_sql = (self.db_path.count(":") == 2)
@@ -125,8 +126,7 @@ class MySQLDB(DB):
                 self.connector.close()
         except Exception:
             logging.warning(
-                f"Failed to close connections. This may result in idle unused connections."
-            )
+                f"Failed to close connections. This may result in idle unused connections.")
 
     #####################################################
     #####################################################
@@ -178,7 +178,10 @@ class MySQLDB(DB):
         rollback=False,
         batch_commands: list[str] = [],
     ) -> Tuple[Any, Any, Any]:
-        def _run_execute(query: str, eval_query: Optional[str] = None, rollback=False):
+        def _run_execute(
+                query: str,
+                eval_query: Optional[str] = None,
+                rollback=False):
             result: List = []
             eval_result: List = []
             error = None
@@ -267,12 +270,45 @@ class MySQLDB(DB):
         if error:
             logging.info(f"Could not delete database: {error}")
 
+    def ensure_database_exists(self, database_name: str) -> None:
+        if getattr(self, "use_cloud_sql", False):
+            try:
+                def get_conn():
+                    return self.connector.connect(
+                        self.db_path,
+                        "pymysql",
+                        user=self.username,
+                        password=self.password,
+                        db="sys")
+                engine = sqlalchemy.create_engine(
+                    "mysql+pymysql://", creator=get_conn, isolation_level="AUTOCOMMIT")
+                with engine.connect() as conn:
+                    try:
+                        conn.execute(
+                            text(
+                                f"CREATE DATABASE IF NOT EXISTS `{database_name}`;"))
+                    except Exception as e:
+                        raise RuntimeError(
+                            f"Failed to create MySQL DB {database_name}: {e}") from e
+            except Exception as e:
+                logging.error(
+                    f"Failed to ensure database exists via Cloud SQL: {e}")
+        else:
+            pw_part = f":{self.password}" if self.password else ""
+            engine = sqlalchemy.create_engine(
+                f"mysql+pymysql://{self.username}{pw_part}@{self.db_path}/")
+            with engine.connect() as conn:
+                conn.execute(
+                    text(
+                        f"CREATE DATABASE IF NOT EXISTS `{database_name}`;"))
+
     def drop_all_tables(self):
         self.batch_execute(
             DROP_ALL_TABLES_QUERY.format(DATABASE=self.db_name).split(";")
         )
 
-    def insert_data(self, data: dict[str, List[str]], setup: Optional[List[str]] = None):
+    def insert_data(self, data: dict[str, List[str]],
+                    setup: Optional[List[str]] = None):
         if not data:
             return
         insertion_statements = []
@@ -293,7 +329,11 @@ class MySQLDB(DB):
     #####################################################
     #####################################################
 
-    def create_tmp_users(self, dql_user: str, dml_user: str, tmp_password: str):
+    def create_tmp_users(
+            self,
+            dql_user: str,
+            dml_user: str,
+            tmp_password: str):
         try:
             self.batch_execute(
                 CREATE_USERS_QUERY.format(
