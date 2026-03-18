@@ -404,8 +404,9 @@ class MySQLImporter(DatabaseImporter):
                         cursor.execute(f"TRUNCATE TABLE `{table_name}`")
                         cursor.execute(f"SET FOREIGN_KEY_CHECKS=1")
                         conn.commit()
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        # Best-effort cleanup only: log and continue with import.
+                        print(f"  ⚠ Failed to truncate {table_name} before import: {e}")
 
                 self.load_data(table_name, csv_file, resuming=resuming)
 
