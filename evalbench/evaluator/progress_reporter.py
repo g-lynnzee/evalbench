@@ -26,6 +26,9 @@ except ImportError:
 def setup_progress_reporting(
     manager: SyncManager, total_dataset_len: int, total_dbs: int
 ):
+    if sys.argv[0].endswith("eval_server.py"):
+        return None, None, None, None, None
+
     tmp_buffer = None
     colab_progress_report = None
     progress_reporting = {
@@ -280,6 +283,8 @@ def cleanup_progress_reporting(
         progress_report,
         tmp_buffer,
         colab_progress_report):
+    if not progress_report:
+        return
     if _IN_COLAB:
         colab_progress_report.update(_colab_progress(progress_report))
         return
@@ -288,7 +293,7 @@ def cleanup_progress_reporting(
         sys.stdout = _ORIGINAL_STDOUT
         sys.stderr = _ORIGINAL_STDERR
         logger = logging.getLogger()
-        if _ORIGINAL_HANDLERS:
+        if _ORIGINAL_HANDLERS is not None:
             logger.handlers = _ORIGINAL_HANDLERS
         _print_report(progress_report, tmp_buffer)
         tmp_buffer.close()
