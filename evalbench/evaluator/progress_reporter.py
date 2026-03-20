@@ -293,7 +293,7 @@ def cleanup_progress_reporting(
         sys.stdout = _ORIGINAL_STDOUT
         sys.stderr = _ORIGINAL_STDERR
         logger = logging.getLogger()
-        if _ORIGINAL_HANDLERS is not None:
+        if _ORIGINAL_HANDLERS:
             logger.handlers = _ORIGINAL_HANDLERS
         _print_report(progress_report, tmp_buffer)
         tmp_buffer.close()
