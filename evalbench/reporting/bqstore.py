@@ -51,6 +51,10 @@ class BigQueryReporter(Reporter):
         self.summary_table = "{}.summary".format(self.dataset_id)
 
     def store(self, results, type: STORETYPE):
+        if results is None or results.empty:
+            logging.info(f"No results to store for {type}")
+            return
+
         dataset = bigquery.Dataset(self.dataset_id)
         dataset.location = self.location
         dataset = self.client.create_dataset(
@@ -61,6 +65,7 @@ class BigQueryReporter(Reporter):
             )
         )
         job_config = bigquery.LoadJobConfig()
+        job_config.autodetect = True
         job_config.schema_update_options = [
             bigquery.SchemaUpdateOption.ALLOW_FIELD_ADDITION,
             bigquery.SchemaUpdateOption.ALLOW_FIELD_RELAXATION,
@@ -77,6 +82,15 @@ class BigQueryReporter(Reporter):
         # Chunk this to avoid BQ OOM
         job_config.write_disposition = bigquery.job.WriteDisposition.WRITE_APPEND  # type: ignore
         for chunk in _split_dataframe(results, _CHUNK_SIZE):
+            # Workaround for pyarrow truncation error when inserting floats into INT64 columns.
+            # This happens if BQ autodetected a column as INT64 in a previous run.
+            # Casting to string avoids the client-side pyarrow crash and lets BQ handle the conversion.
+            if type in [STORETYPE.SUMMARY, STORETYPE.SCORES]:
+                chunk = chunk.copy()
+                for col in chunk.select_dtypes(include=["float64", "float32"]).columns:
+                    # Convert to string and strip .0 to avoid "Failed to parse string: '1.0' as a scalar of type int64"
+                    chunk[col] = chunk[col].astype(str).str.replace(r"\.0$", "", regex=True).replace("nan", None)
+
             job = self.client.load_table_from_dataframe(
                 chunk, table, job_config=job_config
             )
