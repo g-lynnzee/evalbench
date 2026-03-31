@@ -581,6 +581,7 @@ class GeminiCliGenerator(QueryGenerator):
                         "install",
                         ext,
                         "--consent",
+                        "--skip-settings"
                     ],
                     check=False,
                     capture_output=True,
