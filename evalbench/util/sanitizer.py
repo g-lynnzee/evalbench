@@ -10,7 +10,6 @@ def sanitize_sql(sql: str):
         .replace("\\n", " ")
         .replace("\\", "")
         .replace("  ", "")
-        .replace("`", "")
         .replace("google_sql", "")
         .strip()
     )
