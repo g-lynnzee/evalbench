@@ -15,6 +15,14 @@
       "expected_trajectory": [],
       "kind": "agents",
       "max_turns": 15
+    },
+    {
+      "id": "crema-bootstrap",
+      "starting_prompt": "create initial context set for my alloydb database",
+      "conversation_plan": "Ask the agent to create initial context set for my alloydb database and save it in the current directory. Need to have at least 2 templates and 2 facets.",
+      "expected_trajectory": [],
+      "kind": "agents",
+      "max_turns": 15
     }
   ]
 }
