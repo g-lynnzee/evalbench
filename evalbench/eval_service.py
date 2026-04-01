@@ -82,7 +82,7 @@ class EvalServicer(eval_service_pb2_grpc.EvalServiceServicer):
     ) -> eval_response_pb2.EvalResponse:
         session_id = rpc_id_var.get()
         session = SESSIONMANAGER.get_session(session_id)
-        if session is not None and request.streaming_eval:
+        if session is not None:
             session["streaming_eval"] = request.streaming_eval
         return eval_response_pb2.EvalResponse(response="ack")
 
@@ -125,7 +125,7 @@ class EvalServicer(eval_service_pb2_grpc.EvalServiceServicer):
         if config is not None:
             config["session_id"] = session_id
 
-        streaming_eval = session.get("streaming_eval", True) if session else True
+        streaming_eval = session.get("streaming_eval", False) if session else False
         loop = asyncio.get_event_loop()
 
         if streaming_eval:
