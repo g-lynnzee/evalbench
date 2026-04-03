@@ -6,6 +6,7 @@ from scorers import generatedqueryregexpmatcher
 from scorers import recallmatcher
 from scorers import setmatcher
 from scorers import llmrater
+from scorers import llmrater_v2
 from scorers import returnedsql
 from scorers import executablesql
 from scorers import trajectorymatcher
@@ -44,6 +45,9 @@ def compare(
     if "llmrater" in scorers:
         comparators.append(llmrater.LLMRater(
             scorers["llmrater"], global_models))
+    if "llmrater_v2" in scorers:
+        comparators.append(llmrater_v2.LLMRaterV2(
+            scorers["llmrater_v2"], global_models))
     if "regexp_matcher" in scorers:
         comparators.append(
             generatedqueryregexpmatcher.GeneratedQueryRegexpMatcher(
