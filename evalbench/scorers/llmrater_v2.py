@@ -76,7 +76,7 @@ class LLMRater(comparator.Comparator):
     """
 
     def __init__(self, config: dict, global_models):
-        self.name = "llmrater"
+        self.name = "llmrater_v2"
         self.set_match_checker = setmatcher.SetMatcher({})
         self.cache_client = get_cache_client(config)
         self.model_config = config.get("model_config") or ""
