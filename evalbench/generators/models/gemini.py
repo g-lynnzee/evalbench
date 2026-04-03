@@ -1,5 +1,6 @@
 from google import genai
 from google.genai.types import GenerateContentResponse
+from google.genai.errors import ServerError
 from util.rate_limit import ResourceExhaustedError
 from util.gcp import get_gcp_project, get_gcp_region
 from google.api_core.exceptions import ResourceExhausted
@@ -36,7 +37,7 @@ class GeminiGenerator(QueryGenerator):
             if isinstance(response, GenerateContentResponse):
                 r = sanitize_sql(response.text)
             return r
-        except ResourceExhausted as e:
+        except (ResourceExhausted, ServerError) as e:
             raise ResourceExhaustedError(e)
         except Exception as e:
             logger.exception("Unhandled exception during generate_content")
