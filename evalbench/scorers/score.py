@@ -46,7 +46,7 @@ def compare(
         comparators.append(llmrater.LLMRater(
             scorers["llmrater"], global_models))
     if "llmrater_v2" in scorers:
-        comparators.append(llmrater_v2.LLMRaterV2(
+        comparators.append(llmrater_v2.LLMRater(
             scorers["llmrater_v2"], global_models))
     if "regexp_matcher" in scorers:
         comparators.append(
