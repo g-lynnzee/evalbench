@@ -5,7 +5,6 @@ import sqlalchemy
 from sqlalchemy.pool import NullPool
 from google.cloud.alloydb.connector import Connector as AlloyDBConnector
 from google.cloud.alloydb.connector import IPTypes as AlloyDBIPTypes
-from util.auth import get_adc_user_email
 
 CONNECTOR = AlloyDBConnector()
 
