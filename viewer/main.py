@@ -277,7 +277,7 @@ def render_app_content():
             background="#ffffff",
             padding=me.Padding.all("24px"),
             border_radius="8px",
-            box_shadow="0 4px 6px -1px rgb(0 0 0 / 0.1)",
+            box_shadow="0 4px 6px -1px rgba(0, 0, 0, 0.1)",
             color="#1e293b",
         )
     ):
@@ -561,8 +561,8 @@ def render_app_content():
                             background="#ffffff",
                             border_radius="12px",
                             box_shadow=(
-                                "0 1px 3px 0 rgb(0 0 0 / 0.1), "
-                                "0 1px 2px -1px rgb(0 0 0 / 0.1)"
+                                "0 1px 3px 0 rgba(0, 0, 0, 0.1), "
+                                "0 1px 2px -1px rgba(0, 0, 0, 0.1)"
                             ),
                             align_items="center",
                             border=me.Border.all(
@@ -575,43 +575,7 @@ def render_app_content():
                         )
                     ):
 
-                        def on_eval_id_filter_change(
-                            e: me.SelectSelectionChangeEvent
-                        ):
-                            st = me.state(State)
-                            st.eval_id_filter = e.value
 
-                        def on_product_filter_change(
-                            e: me.SelectSelectionChangeEvent
-                        ):
-                            st = me.state(State)
-                            st.product_filter = e.value
-
-                        def on_requester_filter_change(
-                            e: me.SelectSelectionChangeEvent
-                        ):
-                            st = me.state(State)
-                            st.requester_filter = e.value
-
-                        def on_product_input(e: me.InputEvent):
-                            st = me.state(State)
-                            st.product_filter = e.value
-
-                        def on_requester_input(e: me.InputEvent):
-                            st = me.state(State)
-                            st.requester_filter = e.value
-
-                        def on_product_suggestion(
-                            e: me.SelectSelectionChangeEvent
-                        ):
-                            st = me.state(State)
-                            st.product_filter = e.value
-
-                        def on_requester_suggestion(
-                            e: me.SelectSelectionChangeEvent
-                        ):
-                            st = me.state(State)
-                            st.requester_filter = e.value
 
                         def make_prod_handler(val, idx):
                             def handler(e: me.ClickEvent):
