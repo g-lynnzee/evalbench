@@ -83,20 +83,36 @@ def get_results_dir():
 
 
 def get_eval_details(results_dir, dir_name):
-    details = {"product": "N/A", "exact_match": "N/A", "llmrater": "N/A", "trajectory_matcher": "N/A", "turn_count": "N/A", "executable": "N/A", "token_consumption": "N/A", "end_to_end_latency": "N/A"}
-    
+    details = {
+        "product": "N/A",
+        "exact_match": "N/A",
+        "llmrater": "N/A",
+        "trajectory_matcher": "N/A",
+        "turn_count": "N/A",
+        "executable": "N/A",
+        "token_consumption": "N/A",
+        "end_to_end_latency": "N/A",
+    }
+
     # Get product
     config_path = os.path.join(results_dir, dir_name, "configs.csv")
     if os.path.exists(config_path):
         try:
             df = pd.read_csv(config_path)
             # Check for both typo and correct spelling
-            row = df[df["config"].isin(["experiment_config.poduct_name", "experiment_config.product_name"])]
+            row = df[
+                df["config"].isin(
+                    [
+                        "experiment_config.poduct_name",
+                        "experiment_config.product_name",
+                    ]
+                )
+            ]
             if not row.empty:
                 details["product"] = str(row["value"].iloc[0])
         except Exception:
             pass
-            
+
     # Get summary metrics
     summary_path = os.path.join(results_dir, dir_name, "summary.csv")
     if os.path.exists(summary_path):
@@ -123,7 +139,7 @@ def get_eval_details(results_dir, dir_name):
                     details["end_to_end_latency"] = f"{correct:.0f}"
         except Exception:
             pass
-            
+
     return details
 
 
@@ -185,8 +201,6 @@ def app():
             if os.path.isdir(os.path.join(results_dir, d))
         ]
 
-
-
     def on_title_click(e: me.ClickEvent):
         state.selected_directory = ""
         state.conversation_index = 0
@@ -226,7 +240,6 @@ def app():
         )
     ):
 
-
         if state.selected_directory:
 
             def on_tab_change(e: me.ButtonToggleChangeEvent):
@@ -235,8 +248,12 @@ def app():
             me.button_toggle(
                 value=state.selected_tab,
                 buttons=[
-                    me.ButtonToggleButton(label="Dashboard", value="Dashboard"),
-                    me.ButtonToggleButton(label="Configs", value="Configs"),
+                    me.ButtonToggleButton(
+                        label="Dashboard", value="Dashboard"
+                    ),
+                    me.ButtonToggleButton(
+                        label="Configs", value="Configs"
+                    ),
                     # me.ButtonToggleButton(label="Evals", value="Evals"),
                     # me.ButtonToggleButton(label="Scores", value="Scores"),
                     me.ButtonToggleButton(
@@ -280,7 +297,9 @@ def app():
                     except Exception as e:
                         me.text(f"Error reading configs.csv: {e}")
                 else:
-                    me.text(f"configs.csv not found in {state.selected_directory}")
+                    me.text(
+                        f"configs.csv not found in {state.selected_directory}"
+                    )
             elif state.selected_tab == "Evals":
                 evals_path = os.path.join(
                     results_dir, state.selected_directory, "evals.csv"
@@ -288,13 +307,17 @@ def app():
                 if os.path.exists(evals_path):
                     try:
                         df = pd.read_csv(evals_path)
-                        details = get_eval_details(results_dir, state.selected_directory)
+                        details = get_eval_details(
+                            results_dir, state.selected_directory
+                        )
                         df.insert(0, "orchestrator", details["orchestrator"])
                         me.table(data_frame=df)
                     except Exception as e:
                         me.text(f"Error reading evals.csv: {e}")
                 else:
-                    me.text(f"evals.csv not found in {state.selected_directory}")
+                    me.text(
+                        f"evals.csv not found in {state.selected_directory}"
+                    )
             elif state.selected_tab == "Scores":
                 scores_path = os.path.join(
                     results_dir, state.selected_directory, "scores.csv"
@@ -306,7 +329,9 @@ def app():
                     except Exception as e:
                         me.text(f"Error reading scores.csv: {e}")
                 else:
-                    me.text(f"scores.csv not found in {state.selected_directory}")
+                    me.text(
+                        f"scores.csv not found in {state.selected_directory}"
+                    )
             elif state.selected_tab == "Summary":
                 summary_path = os.path.join(
                     results_dir, state.selected_directory, "summary.csv"
@@ -318,7 +343,9 @@ def app():
                     except Exception as e:
                         me.text(f"Error reading summary.csv: {e}")
                 else:
-                    me.text(f"summary.csv not found in {state.selected_directory}")
+                    me.text(
+                        f"summary.csv not found in {state.selected_directory}"
+                    )
         else:
             with me.box(
                 style=me.Style(
@@ -326,7 +353,9 @@ def app():
                     padding=me.Padding.all("24px"),
                     border_radius="12px",
                     border=me.Border.all(
-                        me.BorderSide(width="1px", color="#e5e7eb", style="solid")
+                        me.BorderSide(
+                            width="1px", color="#e5e7eb", style="solid"
+                        )
                     ),
                     box_shadow="0 1px 3px rgba(0,0,0,0.06)",
                     text_align="center",
@@ -343,7 +372,9 @@ def app():
                     ),
                 )
                 me.text(
-                    f"Found {len(directories)} evaluation runs. Click on an Eval ID in the table below to explore the results.",
+                    f"Found {len(directories)} evaluation runs. "
+                    "Click on an Eval ID in the table below to explore "
+                    "the results.",
                     style=me.Style(
                         font_size="16px",
                         color="#6b7280",
@@ -359,20 +390,26 @@ def app():
                             summaries = json.loads(s.eval_summaries)
                         except Exception:
                             summaries = []
-                    
+
                     if not summaries:
                         for d in sorted(directories):
                             details = get_eval_details(results_dir, d)
                             summaries.append({
-                                "id": d, 
+                                "id": d,
                                 "product": details["product"],
                                 "exact_match": details["exact_match"],
                                 "llmrater": details["llmrater"],
-                                "trajectory_matcher": details["trajectory_matcher"],
+                                "trajectory_matcher": details[
+                                    "trajectory_matcher"
+                                ],
                                 "turn_count": details["turn_count"],
                                 "executable": details["executable"],
-                                "token_consumption": details["token_consumption"],
-                                "end_to_end_latency": details["end_to_end_latency"]
+                                "token_consumption": details[
+                                    "token_consumption"
+                                ],
+                                "end_to_end_latency": details[
+                                    "end_to_end_latency"
+                                ]
                             })
                         s.eval_summaries = json.dumps(summaries)
 
@@ -383,15 +420,31 @@ def app():
                             all_summaries = json.loads(s.eval_summaries)
                         except Exception:
                             all_summaries = []
-                    
-                    products = sorted(list(set(x["product"] for x in all_summaries if x["product"] != "N/A")))
+
+                    products = sorted(
+                        list(
+                            set(
+                                x["product"]
+                                for x in all_summaries
+                                if x["product"] != "N/A"
+                            )
+                        )
+                    )
                     eval_ids = sorted([x["id"] for x in all_summaries])
 
                     # Apply filters
                     if state.eval_id_filter:
-                        summaries = [x for x in summaries if x["id"] == state.eval_id_filter]
+                        summaries = [
+                            x
+                            for x in summaries
+                            if x["id"] == state.eval_id_filter
+                        ]
                     if state.product_filter:
-                        summaries = [x for x in summaries if x["product"] == state.product_filter]
+                        summaries = [
+                            x
+                            for x in summaries
+                            if x["product"] == state.product_filter
+                        ]
 
                     # Render filters UI
                     with me.box(
@@ -402,23 +455,35 @@ def app():
                             margin=me.Margin(top="16px", bottom="16px"),
                         )
                     ):
-                        def on_eval_id_filter_change(e: me.SelectSelectionChangeEvent):
+                        def on_eval_id_filter_change(
+                            e: me.SelectSelectionChangeEvent
+                        ):
                             st = me.state(State)
                             st.eval_id_filter = e.value
 
-                        def on_product_filter_change(e: me.SelectSelectionChangeEvent):
+                        def on_product_filter_change(
+                            e: me.SelectSelectionChangeEvent
+                        ):
                             st = me.state(State)
                             st.product_filter = e.value
 
                         me.select(
                             label="Filter by Eval ID",
-                            options=[me.SelectOption(label="All", value="")] + [me.SelectOption(label=d, value=d) for d in eval_ids],
+                            options=[me.SelectOption(label="All", value="")]
+                            + [
+                                me.SelectOption(label=d, value=d)
+                                for d in eval_ids
+                            ],
                             on_selection_change=on_eval_id_filter_change,
                             value=state.eval_id_filter,
                         )
                         me.select(
                             label="Filter by Product",
-                            options=[me.SelectOption(label="All", value="")] + [me.SelectOption(label=p, value=p) for p in products],
+                            options=[me.SelectOption(label="All", value="")]
+                            + [
+                                me.SelectOption(label=p, value=p)
+                                for p in products
+                            ],
                             on_selection_change=on_product_filter_change,
                             value=state.product_filter,
                         )
@@ -432,7 +497,9 @@ def app():
                             display="table",
                             width="100%",
                             border=me.Border.all(
-                                me.BorderSide(width="1px", color="#e5e7eb", style="solid")
+                                me.BorderSide(
+                                    width="1px", color="#e5e7eb", style="solid"
+                                )
                             ),
                             border_radius="8px",
                         )
@@ -449,20 +516,129 @@ def app():
                                 letter_spacing="0.05em",
                             )
                         ):
-                            with me.box(style=me.Style(display="table-cell", padding=me.Padding.symmetric(vertical="12px", horizontal="16px"), text_align="center", border=me.Border.all(me.BorderSide(width="1px", color="#e2e8f0", style="solid")), width="36ch", white_space="nowrap")):
+                            with me.box(
+                                style=me.Style(
+                                    display="table-cell",
+                                    padding=me.Padding.symmetric(
+                                        vertical="12px", horizontal="16px"
+                                    ),
+                                    text_align="center",
+                                    border=me.Border.all(
+                                        me.BorderSide(
+                                            width="1px",
+                                            color="#e2e8f0",
+                                            style="solid",
+                                        )
+                                    ),
+                                    width="36ch",
+                                    white_space="nowrap",
+                                )
+                            ):
                                 me.text("Eval ID")
-                            with me.box(style=me.Style(display="table-cell", padding=me.Padding.symmetric(vertical="12px", horizontal="16px"), text_align="center", border=me.Border.all(me.BorderSide(width="1px", color="#e2e8f0", style="solid")))):
+                            with me.box(
+                                style=me.Style(
+                                    display="table-cell",
+                                    padding=me.Padding.symmetric(
+                                        vertical="12px", horizontal="16px"
+                                    ),
+                                    text_align="center",
+                                    border=me.Border.all(
+                                        me.BorderSide(
+                                            width="1px",
+                                            color="#e2e8f0",
+                                            style="solid",
+                                        )
+                                    ),
+                                )
+                            ):
                                 me.text("Product")
 
-                            with me.box(style=me.Style(display="table-cell", padding=me.Padding.symmetric(vertical="12px", horizontal="16px"), text_align="center", border=me.Border.all(me.BorderSide(width="1px", color="#e2e8f0", style="solid")), width="18ch", white_space="nowrap")):
+                            with me.box(
+                                style=me.Style(
+                                    display="table-cell",
+                                    padding=me.Padding.symmetric(
+                                        vertical="12px", horizontal="16px"
+                                    ),
+                                    text_align="center",
+                                    border=me.Border.all(
+                                        me.BorderSide(
+                                            width="1px",
+                                            color="#e2e8f0",
+                                            style="solid",
+                                        )
+                                    ),
+                                    width="18ch",
+                                    white_space="nowrap",
+                                )
+                            ):
                                 me.text("Trajectory Matcher")
-                            with me.box(style=me.Style(display="table-cell", padding=me.Padding.symmetric(vertical="12px", horizontal="16px"), text_align="center", border=me.Border.all(me.BorderSide(width="1px", color="#e2e8f0", style="solid")))):
+                            with me.box(
+                                style=me.Style(
+                                    display="table-cell",
+                                    padding=me.Padding.symmetric(
+                                        vertical="12px", horizontal="16px"
+                                    ),
+                                    text_align="center",
+                                    border=me.Border.all(
+                                        me.BorderSide(
+                                            width="1px",
+                                            color="#e2e8f0",
+                                            style="solid",
+                                        )
+                                    ),
+                                )
+                            ):
                                 me.text("Turn Count")
-                            with me.box(style=me.Style(display="table-cell", padding=me.Padding.symmetric(vertical="12px", horizontal="16px"), text_align="center", border=me.Border.all(me.BorderSide(width="1px", color="#e2e8f0", style="solid")))):
+                            with me.box(
+                                style=me.Style(
+                                    display="table-cell",
+                                    padding=me.Padding.symmetric(
+                                        vertical="12px", horizontal="16px"
+                                    ),
+                                    text_align="center",
+                                    border=me.Border.all(
+                                        me.BorderSide(
+                                            width="1px",
+                                            color="#e2e8f0",
+                                            style="solid",
+                                        )
+                                    ),
+                                )
+                            ):
                                 me.text("Executable")
-                            with me.box(style=me.Style(display="table-cell", padding=me.Padding.symmetric(vertical="12px", horizontal="16px"), text_align="center", border=me.Border.all(me.BorderSide(width="1px", color="#e2e8f0", style="solid")))):
+                            with me.box(
+                                style=me.Style(
+                                    display="table-cell",
+                                    padding=me.Padding.symmetric(
+                                        vertical="12px", horizontal="16px"
+                                    ),
+                                    text_align="center",
+                                    border=me.Border.all(
+                                        me.BorderSide(
+                                            width="1px",
+                                            color="#e2e8f0",
+                                            style="solid",
+                                        )
+                                    ),
+                                )
+                            ):
                                 me.text("Token Consumption")
-                            with me.box(style=me.Style(display="table-cell", padding=me.Padding.symmetric(vertical="12px", horizontal="16px"), text_align="center", border=me.Border.all(me.BorderSide(width="1px", color="#e2e8f0", style="solid")))):
+                            with me.box(
+                                style=me.Style(
+                                    display="table-cell",
+                                    padding=me.Padding.symmetric(
+                                        vertical="12px", horizontal="16px"
+                                    ),
+                                    text_align="center",
+                                    border=me.Border.all(
+                                        me.BorderSide(
+                                            width="1px",
+                                            color="#e2e8f0",
+                                            style="solid",
+                                        )
+                                    ),
+                                )
+                            ):
                                 me.text("End-to-End Latency (ms)")
 
                         # Data rows
@@ -490,7 +666,24 @@ def app():
                                 )
                             ):
                                 # Eval ID as a link/button
-                                with me.box(style=me.Style(display="table-cell", padding=me.Padding.symmetric(vertical="10px", horizontal="16px"), text_align="center", border=me.Border.all(me.BorderSide(width="1px", color="#e2e8f0", style="solid")), width="36ch", white_space="nowrap")):
+                                with me.box(
+                                    style=me.Style(
+                                        display="table-cell",
+                                        padding=me.Padding.symmetric(
+                                            vertical="10px", horizontal="16px"
+                                        ),
+                                        text_align="center",
+                                        border=me.Border.all(
+                                            me.BorderSide(
+                                                width="1px",
+                                                color="#e2e8f0",
+                                                style="solid",
+                                            )
+                                        ),
+                                        width="36ch",
+                                        white_space="nowrap",
+                                    )
+                                ):
                                     me.button(
                                         d,
                                         on_click=make_on_click(d),
@@ -502,28 +695,141 @@ def app():
                                             font_size="14px",
                                             padding=me.Padding.all("0px"),
                                             margin=me.Margin.all("0px"),
-                                            border=me.Border.all(me.BorderSide(width="0px")),
+                                            border=me.Border.all(
+                                                me.BorderSide(width="0px")
+                                            ),
                                             font_weight="500",
                                             width="100%",
                                         ),
                                     )
-                                with me.box(style=me.Style(display="table-cell", padding=me.Padding.symmetric(vertical="10px", horizontal="16px"), text_align="center", border=me.Border.all(me.BorderSide(width="1px", color="#e2e8f0", style="solid")))):
-                                    me.text(prod, style=me.Style(color="#334155"))
+                                with me.box(
+                                    style=me.Style(
+                                        display="table-cell",
+                                        padding=me.Padding.symmetric(
+                                            vertical="10px", horizontal="16px"
+                                        ),
+                                        text_align="center",
+                                        border=me.Border.all(
+                                            me.BorderSide(
+                                                width="1px",
+                                                color="#e2e8f0",
+                                                style="solid",
+                                            )
+                                        ),
+                                    )
+                                ):
+                                    me.text(
+                                        prod, style=me.Style(color="#334155")
+                                    )
 
-                                with me.box(style=me.Style(display="table-cell", padding=me.Padding.symmetric(vertical="10px", horizontal="16px"), text_align="center", border=me.Border.all(me.BorderSide(width="1px", color="#e2e8f0", style="solid")), width="18ch", white_space="nowrap")):
-                                    me.text(traj, style=me.Style(color=get_color_for_pct(traj)))
+                                with me.box(
+                                    style=me.Style(
+                                        display="table-cell",
+                                        padding=me.Padding.symmetric(
+                                            vertical="10px", horizontal="16px"
+                                        ),
+                                        text_align="center",
+                                        border=me.Border.all(
+                                            me.BorderSide(
+                                                width="1px",
+                                                color="#e2e8f0",
+                                                style="solid",
+                                            )
+                                        ),
+                                        width="18ch",
+                                        white_space="nowrap",
+                                    )
+                                ):
+                                    me.text(
+                                        traj,
+                                        style=me.Style(
+                                            color=get_color_for_pct(traj)
+                                        ),
+                                    )
 
-                                with me.box(style=me.Style(display="table-cell", padding=me.Padding.symmetric(vertical="10px", horizontal="16px"), text_align="center", border=me.Border.all(me.BorderSide(width="1px", color="#e2e8f0", style="solid")))):
-                                    me.text(turns, style=me.Style(color="#334155"))
+                                with me.box(
+                                    style=me.Style(
+                                        display="table-cell",
+                                        padding=me.Padding.symmetric(
+                                            vertical="10px", horizontal="16px"
+                                        ),
+                                        text_align="center",
+                                        border=me.Border.all(
+                                            me.BorderSide(
+                                                width="1px",
+                                                color="#e2e8f0",
+                                                style="solid",
+                                            )
+                                        ),
+                                    )
+                                ):
+                                    me.text(
+                                        turns, style=me.Style(color="#334155")
+                                    )
 
-                                with me.box(style=me.Style(display="table-cell", padding=me.Padding.symmetric(vertical="10px", horizontal="16px"), text_align="center", border=me.Border.all(me.BorderSide(width="1px", color="#e2e8f0", style="solid")))):
-                                    me.text(exec_val, style=me.Style(color=get_color_for_pct(exec_val)))
+                                with me.box(
+                                    style=me.Style(
+                                        display="table-cell",
+                                        padding=me.Padding.symmetric(
+                                            vertical="10px", horizontal="16px"
+                                        ),
+                                        text_align="center",
+                                        border=me.Border.all(
+                                            me.BorderSide(
+                                                width="1px",
+                                                color="#e2e8f0",
+                                                style="solid",
+                                            )
+                                        ),
+                                    )
+                                ):
+                                    me.text(
+                                        exec_val,
+                                        style=me.Style(
+                                            color=get_color_for_pct(exec_val)
+                                        ),
+                                    )
 
-                                with me.box(style=me.Style(display="table-cell", padding=me.Padding.symmetric(vertical="10px", horizontal="16px"), text_align="center", border=me.Border.all(me.BorderSide(width="1px", color="#e2e8f0", style="solid")))):
-                                    me.text(tokens, style=me.Style(color="#334155"))
+                                with me.box(
+                                    style=me.Style(
+                                        display="table-cell",
+                                        padding=me.Padding.symmetric(
+                                            vertical="10px", horizontal="16px"
+                                        ),
+                                        text_align="center",
+                                        border=me.Border.all(
+                                            me.BorderSide(
+                                                width="1px",
+                                                color="#e2e8f0",
+                                                style="solid",
+                                            )
+                                        ),
+                                    )
+                                ):
+                                    me.text(
+                                        tokens, style=me.Style(color="#334155")
+                                    )
 
-                                with me.box(style=me.Style(display="table-cell", padding=me.Padding.symmetric(vertical="10px", horizontal="16px"), text_align="center", border=me.Border.all(me.BorderSide(width="1px", color="#e2e8f0", style="solid")))):
-                                    me.text(latency, style=me.Style(color="#334155"))
+                                with me.box(
+                                    style=me.Style(
+                                        display="table-cell",
+                                        padding=me.Padding.symmetric(
+                                            vertical="10px", horizontal="16px"
+                                        ),
+                                        text_align="center",
+                                        border=me.Border.all(
+                                            me.BorderSide(
+                                                width="1px",
+                                                color="#e2e8f0",
+                                                style="solid",
+                                            )
+                                        ),
+                                    )
+                                ):
+                                    me.text(
+                                        latency,
+                                        style=me.Style(color="#334155"),
+                                    )
 
 
 if __name__ == "__main__":
