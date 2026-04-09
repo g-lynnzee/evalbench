@@ -128,8 +128,8 @@ def get_eval_details(results_dir, dir_name):
             ]
             if not req_row.empty:
                 details["requester"] = str(req_row["value"].iloc[0])
-        except Exception:
-            pass
+        except Exception as e:
+            logging.warning(f"Error reading configs.csv for {dir_name}: {e}")
 
     # Get summary metrics
     summary_path = os.path.join(results_dir, dir_name, "summary.csv")
@@ -157,8 +157,8 @@ def get_eval_details(results_dir, dir_name):
                     details["token_consumption"] = f"{correct:.0f}"
                 elif name == "end_to_end_latency":
                     details["end_to_end_latency"] = f"{correct:.0f}"
-        except Exception:
-            pass
+        except Exception as e:
+            logging.warning(f"Error reading summary.csv for {dir_name}: {e}")
 
     return details
 
@@ -209,7 +209,6 @@ def on_load(e: me.LoadEvent):
     ],
 )
 def app():
-    state = me.state(State)
     with me.box(
         style=me.Style(
             background="#f8fafc",
@@ -263,8 +262,6 @@ def render_app_content():
                 text_align="left",
             ),
         )
-
-
 
     # Centered content at 90% browser width
     with me.box(
@@ -574,25 +571,6 @@ def render_app_content():
                             ),
                         )
                     ):
-
-
-
-                        def make_prod_handler(val, idx):
-                            def handler(e: me.ClickEvent):
-                                st = me.state(State)
-                                st.product_filter = val
-
-                            handler.__name__ = f"click_prod_sugg_{idx}"
-                            return handler
-
-                        def make_req_handler(val, idx):
-                            def handler(e: me.ClickEvent):
-                                st = me.state(State)
-                                st.requester_filter = val
-
-                            handler.__name__ = f"click_req_sugg_{idx}"
-                            return handler
-
                         def toggle_eval_id_dropdown(e: me.ClickEvent):
                             st = me.state(State)
                             if st.open_dropdown == "eval_id":
