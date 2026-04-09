@@ -9,8 +9,7 @@ Evaluation rules given to LLM:
     2. The order of columns in OUTPUT #2 does not matter.
     3. The order of rows in OUTPUT #2 does not matter UNLESS explicitly requested in the prompt.
     4. Allow slight variations due to differences in rounding or precision, for calculated values.
-    5. Allow acceptable divergences based on relaxed criteria (ambiguous counts, null handling, relative dates, IDs vs Names, ambiguous limits, etc.).
-    6. The mapped column names might differ, do not make any assumptions based on them.
+    5. The mapped column names might differ, do not make any assumptions based on them.
 
 Run Configuration Options:
     1. model_config: Required
@@ -204,7 +203,7 @@ class LLMRater(comparator.Comparator):
 
         1. Analyze the QUESTION: Does it explicitly ask for a specific sorting order (e.g., "ordered by date", "top 5")? Does it explicitly ask for a limit?
         2. Column Mapping: Ensure that every column in OUTPUT #1 has a corresponding column in OUTPUT #2 that represents the same information. OUTPUT #2 is allowed to have additional descriptive columns.
-        3. Data Comparison: Compare the data within each mapped column pair. 
+        3. Data Comparison: Compare the data within each mapped column pair.
         4. Row Order: Ignore differences in row order UNLESS the QUESTION explicitly requested a specific sorting. Treat the data as unordered sets if no order is specified.
         5. Extra Rows: If OUTPUT #2 has extra rows but contains all of OUTPUT #1, evaluate if the extra rows violate the prompt's constraints. If the prompt was ambiguous about limits (e.g. "Identify the MSA with the highest growth" and the model returns a ranked list instead of a single row), treating it as EXTRA_INFORMATION is acceptable and correct.
 
@@ -241,7 +240,7 @@ class LLMRater(comparator.Comparator):
 
         logging.debug(
             "\n --------- llm_rater_output:   --------- \n %s ", response)
-        
+
         # Scoring Logic: Both INFORMATION_MATCHES and EXTRA_INFORMATION are rewarded as correct.
         score = (
             100
