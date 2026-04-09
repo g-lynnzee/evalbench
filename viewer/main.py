@@ -3,6 +3,7 @@ import mesop as me
 import pandas as pd
 import yaml
 import logging
+import json
 
 logging.basicConfig(level=logging.INFO)
 
@@ -61,6 +62,9 @@ class State:
     selected_directory: str
     selected_tab: str = "Dashboard"
     conversation_index: int = 0
+    eval_summaries: str = ""
+    eval_id_filter: str = ""
+    product_filter: str = ""
 
 
 def get_results_dir():
@@ -76,6 +80,66 @@ def get_results_dir():
             return candidate
 
     return results_dir_candidates[1]  # Fallback to default
+
+
+def get_eval_details(results_dir, dir_name):
+    details = {"product": "N/A", "exact_match": "N/A", "llmrater": "N/A", "trajectory_matcher": "N/A", "turn_count": "N/A", "executable": "N/A", "token_consumption": "N/A", "end_to_end_latency": "N/A"}
+    
+    # Get product
+    config_path = os.path.join(results_dir, dir_name, "configs.csv")
+    if os.path.exists(config_path):
+        try:
+            df = pd.read_csv(config_path)
+            # Check for both typo and correct spelling
+            row = df[df["config"].isin(["experiment_config.poduct_name", "experiment_config.product_name"])]
+            if not row.empty:
+                details["product"] = str(row["value"].iloc[0])
+        except Exception:
+            pass
+            
+    # Get summary metrics
+    summary_path = os.path.join(results_dir, dir_name, "summary.csv")
+    if os.path.exists(summary_path):
+        try:
+            df = pd.read_csv(summary_path)
+            for _, row in df.iterrows():
+                name = row.get("metric_name")
+                correct = row.get("correct_results_count", 0)
+                total = row.get("total_results_count", 0)
+                pct = (correct / total) * 100 if total > 0 else 0
+                if name == "exact_match":
+                    details["exact_match"] = f"{pct:.0f}%"
+                elif name == "llmrater":
+                    details["llmrater"] = f"{pct:.0f}%"
+                elif name == "trajectory_matcher":
+                    details["trajectory_matcher"] = f"{pct:.0f}%"
+                elif name == "turn_count":
+                    details["turn_count"] = f"{correct:.1f}"
+                elif name == "executable":
+                    details["executable"] = f"{pct:.0f}%"
+                elif name == "token_consumption":
+                    details["token_consumption"] = f"{correct:.0f}"
+                elif name == "end_to_end_latency":
+                    details["end_to_end_latency"] = f"{correct:.0f}"
+        except Exception:
+            pass
+            
+    return details
+
+
+def get_color_for_pct(val_str):
+    if not val_str or not val_str.endswith("%"):
+        return "#334155"  # Default color
+    try:
+        val = float(val_str.rstrip("%"))
+        if val >= 80:
+            return "#16a34a"  # Green
+        elif val >= 40:
+            return "#ca8a04"  # Yellow
+        else:
+            return "#dc2626"  # Red
+    except Exception:
+        return "#334155"
 
 
 def on_load(e: me.LoadEvent):
@@ -97,7 +161,7 @@ def on_load(e: me.LoadEvent):
 
 @me.page(
     path="/",
-    title="Evalbench",
+    title="EvalBench Viewer",
     on_load=on_load,
     security_policy=me.SecurityPolicy(
         dangerously_disable_trusted_types=True,
@@ -121,8 +185,10 @@ def app():
             if os.path.isdir(os.path.join(results_dir, d))
         ]
 
-    def on_selection_change(e: me.SelectSelectionChangeEvent):
-        state.selected_directory = e.value
+
+
+    def on_title_click(e: me.ClickEvent):
+        state.selected_directory = ""
         state.conversation_index = 0
 
     # Full-width header bar
@@ -133,13 +199,19 @@ def app():
             margin=me.Margin(bottom="24px"),
         )
     ):
-        me.text(
+        me.button(
             "EvalBench Viewer",
+            on_click=on_title_click,
             style=me.Style(
                 color="#f8fafc",
                 font_size="22px",
                 font_weight="700",
                 letter_spacing="0.5px",
+                background="transparent",
+                padding=me.Padding.all("0px"),
+                margin=me.Margin.all("0px"),
+                border=me.Border.all(me.BorderSide(width="0px")),
+                text_align="left",
             ),
         )
 
@@ -153,18 +225,7 @@ def app():
             gap="16px",
         )
     ):
-        with me.box(
-            style=me.Style(width="100%", max_width="400px", margin=me.Margin(bottom="8px"))
-        ):
-            me.select(
-                label="Select a result directory",
-                options=[
-                    me.SelectOption(label=d, value=d) for d in sorted(directories)
-                ],
-                on_selection_change=on_selection_change,
-                value=state.selected_directory,
-                appearance="outline",
-            )
+
 
         if state.selected_directory:
 
@@ -227,6 +288,8 @@ def app():
                 if os.path.exists(evals_path):
                     try:
                         df = pd.read_csv(evals_path)
+                        details = get_eval_details(results_dir, state.selected_directory)
+                        df.insert(0, "orchestrator", details["orchestrator"])
                         me.table(data_frame=df)
                     except Exception as e:
                         me.text(f"Error reading evals.csv: {e}")
@@ -256,6 +319,211 @@ def app():
                         me.text(f"Error reading summary.csv: {e}")
                 else:
                     me.text(f"summary.csv not found in {state.selected_directory}")
+        else:
+            with me.box(
+                style=me.Style(
+                    background="#ffffff",
+                    padding=me.Padding.all("24px"),
+                    border_radius="12px",
+                    border=me.Border.all(
+                        me.BorderSide(width="1px", color="#e5e7eb", style="solid")
+                    ),
+                    box_shadow="0 1px 3px rgba(0,0,0,0.06)",
+                    text_align="center",
+                    margin=me.Margin(top="16px"),
+                )
+            ):
+                me.text(
+                    "Welcome to EvalBench Viewer",
+                    style=me.Style(
+                        font_size="24px",
+                        font_weight="700",
+                        color="#1f2937",
+                        margin=me.Margin(bottom="8px"),
+                    ),
+                )
+                me.text(
+                    f"Found {len(directories)} evaluation runs. Click on an Eval ID in the table below to explore the results.",
+                    style=me.Style(
+                        font_size="16px",
+                        color="#6b7280",
+                        margin=me.Margin(bottom="16px"),
+                    ),
+                )
+                if directories:
+                    # Compute summaries if empty
+                    s = me.state(State)
+                    summaries = []
+                    if s.eval_summaries:
+                        try:
+                            summaries = json.loads(s.eval_summaries)
+                        except Exception:
+                            summaries = []
+                    
+                    if not summaries:
+                        for d in sorted(directories):
+                            details = get_eval_details(results_dir, d)
+                            summaries.append({
+                                "id": d, 
+                                "product": details["product"],
+                                "exact_match": details["exact_match"],
+                                "llmrater": details["llmrater"],
+                                "trajectory_matcher": details["trajectory_matcher"],
+                                "turn_count": details["turn_count"],
+                                "executable": details["executable"],
+                                "token_consumption": details["token_consumption"],
+                                "end_to_end_latency": details["end_to_end_latency"]
+                            })
+                        s.eval_summaries = json.dumps(summaries)
+
+                    # Extract unique values for filters from ALL summaries
+                    all_summaries = []
+                    if s.eval_summaries:
+                        try:
+                            all_summaries = json.loads(s.eval_summaries)
+                        except Exception:
+                            all_summaries = []
+                    
+                    products = sorted(list(set(x["product"] for x in all_summaries if x["product"] != "N/A")))
+                    eval_ids = sorted([x["id"] for x in all_summaries])
+
+                    # Apply filters
+                    if state.eval_id_filter:
+                        summaries = [x for x in summaries if x["id"] == state.eval_id_filter]
+                    if state.product_filter:
+                        summaries = [x for x in summaries if x["product"] == state.product_filter]
+
+                    # Render filters UI
+                    with me.box(
+                        style=me.Style(
+                            display="flex",
+                            flex_direction="row",
+                            gap="16px",
+                            margin=me.Margin(top="16px", bottom="16px"),
+                        )
+                    ):
+                        def on_eval_id_filter_change(e: me.SelectSelectionChangeEvent):
+                            st = me.state(State)
+                            st.eval_id_filter = e.value
+
+                        def on_product_filter_change(e: me.SelectSelectionChangeEvent):
+                            st = me.state(State)
+                            st.product_filter = e.value
+
+                        me.select(
+                            label="Filter by Eval ID",
+                            options=[me.SelectOption(label="All", value="")] + [me.SelectOption(label=d, value=d) for d in eval_ids],
+                            on_selection_change=on_eval_id_filter_change,
+                            value=state.eval_id_filter,
+                        )
+                        me.select(
+                            label="Filter by Product",
+                            options=[me.SelectOption(label="All", value="")] + [me.SelectOption(label=p, value=p) for p in products],
+                            on_selection_change=on_product_filter_change,
+                            value=state.product_filter,
+                        )
+
+                    # Render custom table
+                    with me.box(
+                        style=me.Style(
+                            max_height="600px",
+                            overflow_y="auto",
+                            margin=me.Margin(top="16px"),
+                            display="table",
+                            width="100%",
+                            border=me.Border.all(
+                                me.BorderSide(width="1px", color="#e5e7eb", style="solid")
+                            ),
+                            border_radius="8px",
+                        )
+                    ):
+                        # Header row
+                        with me.box(
+                            style=me.Style(
+                                display="table-row",
+                                background="#f8fafc",
+                                font_weight="bold",
+                                color="#475569",
+                                font_size="12px",
+                                text_transform="uppercase",
+                                letter_spacing="0.05em",
+                            )
+                        ):
+                            with me.box(style=me.Style(display="table-cell", padding=me.Padding.symmetric(vertical="12px", horizontal="16px"), text_align="center", border=me.Border.all(me.BorderSide(width="1px", color="#e2e8f0", style="solid")), width="36ch", white_space="nowrap")):
+                                me.text("Eval ID")
+                            with me.box(style=me.Style(display="table-cell", padding=me.Padding.symmetric(vertical="12px", horizontal="16px"), text_align="center", border=me.Border.all(me.BorderSide(width="1px", color="#e2e8f0", style="solid")))):
+                                me.text("Product")
+
+                            with me.box(style=me.Style(display="table-cell", padding=me.Padding.symmetric(vertical="12px", horizontal="16px"), text_align="center", border=me.Border.all(me.BorderSide(width="1px", color="#e2e8f0", style="solid")), width="18ch", white_space="nowrap")):
+                                me.text("Trajectory Matcher")
+                            with me.box(style=me.Style(display="table-cell", padding=me.Padding.symmetric(vertical="12px", horizontal="16px"), text_align="center", border=me.Border.all(me.BorderSide(width="1px", color="#e2e8f0", style="solid")))):
+                                me.text("Turn Count")
+                            with me.box(style=me.Style(display="table-cell", padding=me.Padding.symmetric(vertical="12px", horizontal="16px"), text_align="center", border=me.Border.all(me.BorderSide(width="1px", color="#e2e8f0", style="solid")))):
+                                me.text("Executable")
+                            with me.box(style=me.Style(display="table-cell", padding=me.Padding.symmetric(vertical="12px", horizontal="16px"), text_align="center", border=me.Border.all(me.BorderSide(width="1px", color="#e2e8f0", style="solid")))):
+                                me.text("Token Consumption")
+                            with me.box(style=me.Style(display="table-cell", padding=me.Padding.symmetric(vertical="12px", horizontal="16px"), text_align="center", border=me.Border.all(me.BorderSide(width="1px", color="#e2e8f0", style="solid")))):
+                                me.text("End-to-End Latency (ms)")
+
+                        # Data rows
+                        for idx, item in enumerate(summaries):
+                            d = item["id"]
+                            prod = item["product"]
+                            traj = item.get("trajectory_matcher", "N/A")
+                            turns = item.get("turn_count", "N/A")
+                            exec_val = item.get("executable", "N/A")
+                            tokens = item.get("token_consumption", "N/A")
+                            latency = item.get("end_to_end_latency", "N/A")
+
+                            bg_color = "#ffffff" if idx % 2 == 0 else "#f8fafc"
+
+                            def make_on_click(dir_name):
+                                def on_click(e: me.ClickEvent):
+                                    s = me.state(State)
+                                    s.selected_directory = dir_name
+                                return on_click
+
+                            with me.box(
+                                style=me.Style(
+                                    display="table-row",
+                                    background=bg_color,
+                                )
+                            ):
+                                # Eval ID as a link/button
+                                with me.box(style=me.Style(display="table-cell", padding=me.Padding.symmetric(vertical="10px", horizontal="16px"), text_align="center", border=me.Border.all(me.BorderSide(width="1px", color="#e2e8f0", style="solid")), width="36ch", white_space="nowrap")):
+                                    me.button(
+                                        d,
+                                        on_click=make_on_click(d),
+                                        style=me.Style(
+                                            text_align="center",
+                                            background="transparent",
+                                            color="#0284c7",
+                                            font_family="monospace",
+                                            font_size="14px",
+                                            padding=me.Padding.all("0px"),
+                                            margin=me.Margin.all("0px"),
+                                            border=me.Border.all(me.BorderSide(width="0px")),
+                                            font_weight="500",
+                                            width="100%",
+                                        ),
+                                    )
+                                with me.box(style=me.Style(display="table-cell", padding=me.Padding.symmetric(vertical="10px", horizontal="16px"), text_align="center", border=me.Border.all(me.BorderSide(width="1px", color="#e2e8f0", style="solid")))):
+                                    me.text(prod, style=me.Style(color="#334155"))
+
+                                with me.box(style=me.Style(display="table-cell", padding=me.Padding.symmetric(vertical="10px", horizontal="16px"), text_align="center", border=me.Border.all(me.BorderSide(width="1px", color="#e2e8f0", style="solid")), width="18ch", white_space="nowrap")):
+                                    me.text(traj, style=me.Style(color=get_color_for_pct(traj)))
+
+                                with me.box(style=me.Style(display="table-cell", padding=me.Padding.symmetric(vertical="10px", horizontal="16px"), text_align="center", border=me.Border.all(me.BorderSide(width="1px", color="#e2e8f0", style="solid")))):
+                                    me.text(turns, style=me.Style(color="#334155"))
+
+                                with me.box(style=me.Style(display="table-cell", padding=me.Padding.symmetric(vertical="10px", horizontal="16px"), text_align="center", border=me.Border.all(me.BorderSide(width="1px", color="#e2e8f0", style="solid")))):
+                                    me.text(exec_val, style=me.Style(color=get_color_for_pct(exec_val)))
+
+                                with me.box(style=me.Style(display="table-cell", padding=me.Padding.symmetric(vertical="10px", horizontal="16px"), text_align="center", border=me.Border.all(me.BorderSide(width="1px", color="#e2e8f0", style="solid")))):
+                                    me.text(tokens, style=me.Style(color="#334155"))
+
+                                with me.box(style=me.Style(display="table-cell", padding=me.Padding.symmetric(vertical="10px", horizontal="16px"), text_align="center", border=me.Border.all(me.BorderSide(width="1px", color="#e2e8f0", style="solid")))):
+                                    me.text(latency, style=me.Style(color="#334155"))
 
 
 if __name__ == "__main__":
