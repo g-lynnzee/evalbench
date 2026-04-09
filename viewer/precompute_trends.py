@@ -33,25 +33,60 @@ def precompute():
         logging.warning(f"Results directory not found at {results_dir}")
         return
         
-    directories = [
+    # Load processed directories
+    processed_dirs_file = os.path.join(results_dir, "processed_dirs.json")
+    processed_dirs = set()
+    if os.path.exists(processed_dirs_file):
+        try:
+            with open(processed_dirs_file, "r") as f:
+                processed_dirs = set(json.load(f))
+            logging.info(f"Loaded {len(processed_dirs)} processed directories from state.")
+        except Exception as e:
+            logging.error(f"Error reading processed dirs file: {e}")
+
+    # Load existing trends data
+    cache_file = os.path.join(results_dir, "trends_cache.csv")
+    existing_df = pd.DataFrame()
+    if os.path.exists(cache_file):
+        try:
+            existing_df = pd.read_csv(cache_file)
+            logging.info(f"Loaded {len(existing_df)} rows of existing trends data.")
+        except Exception as e:
+            logging.error(f"Error reading trends cache: {e}")
+
+    all_directories = [
         d
         for d in os.listdir(results_dir)
         if os.path.isdir(os.path.join(results_dir, d))
     ]
     
+    # Filter for new directories
+    new_directories = [d for d in all_directories if d not in processed_dirs]
+    
+    total_new = len(new_directories)
+    logging.info(f"Found {len(all_directories)} total directories. {total_new} are new.")
+    
+    if total_new == 0:
+        logging.info("No new directories to process.")
+        return
+
     data = []
     products = set()
     requesters = set()
-    eval_ids = []
+    eval_ids = all_directories
     
-    total_dirs = len(directories)
-    logging.info(f"Found {total_dirs} directories to process.")
+    # If we have existing data, populate products and requesters from it
+    if not existing_df.empty:
+        if 'product' in existing_df.columns:
+            products.update(existing_df['product'].dropna().unique())
+        if 'requester' in existing_df.columns:
+            requesters.update(existing_df['requester'].dropna().unique())
+
+    successfully_processed = []
     
-    for i, d in enumerate(directories):
-        eval_ids.append(d)
-        
-        if (i + 1) % 10 == 0 or i == total_dirs - 1:
-            logging.info(f"Precompute progress: {(i + 1) / total_dirs * 100:.1f}% ({i + 1}/{total_dirs})")
+    for i, d in enumerate(new_directories):
+        if (i + 1) % 10 == 0 or i == total_new - 1:
+            logging.info(f"Precompute progress: {(i + 1) / total_new * 100:.1f}% ({i + 1}/{total_new})")
         run_dir = os.path.join(results_dir, d)
         configs_file = os.path.join(run_dir, "configs.csv")
         summary_file = os.path.join(run_dir, "summary.csv")
@@ -101,17 +136,26 @@ def precompute():
                     'trajectory': trajectory,
                     'job_id': d
                 })
+                successfully_processed.append(d)
             except Exception as e:
                 print(f"Error reading data from {d}: {e}")
                 
-    if not data:
-        logging.warning("No data found in any run directory.")
+    if not data and existing_df.empty:
+        logging.warning("No data found in any run directory and no existing cache.")
         return
         
-    df = pd.DataFrame(data)
+    new_df = pd.DataFrame(data)
+    
+    # Combine with existing data
+    if not existing_df.empty:
+        df = pd.concat([existing_df, new_df], ignore_index=True)
+    else:
+        df = new_df
+        
+    # Drop duplicates just in case (based on job_id)
+    df = df.drop_duplicates(subset=['job_id'], keep='last')
     
     # Save trends cache
-    cache_file = os.path.join(results_dir, "trends_cache.csv")
     df.to_csv(cache_file, index=False)
     logging.info(f"Precomputed trends data saved to {cache_file}")
     
@@ -120,11 +164,18 @@ def precompute():
     filters_data = {
         "products": sorted(list(products)),
         "requesters": sorted(list(requesters)),
-        "eval_ids": sorted(eval_ids)
+        "eval_ids": sorted(list(eval_ids))
     }
     with open(filters_file, "w") as f:
         json.dump(filters_data, f, indent=2)
     logging.info(f"Precomputed filter values saved to {filters_file}")
+    
+    # Save processed directories list
+    new_processed_dirs = processed_dirs.union(set(successfully_processed))
+    with open(processed_dirs_file, "w") as f:
+        json.dump(list(new_processed_dirs), f, indent=2)
+    logging.info(f"Saved {len(new_processed_dirs)} processed directories to state.")
+
 
 if __name__ == "__main__":
     precompute()
