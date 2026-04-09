@@ -1251,6 +1251,46 @@ def render_app_content():
                     ],
                     on_change=on_tab_change,
                 )
+
+                # Read configs first to get interesting attributes
+                config_path = os.path.join(
+                    results_dir, state.selected_directory, "configs.csv"
+                )
+                interesting_configs = {}
+                if os.path.exists(config_path):
+                    try:
+                        config_df = pd.read_csv(config_path)
+                        
+                        def get_val(cfg_name):
+                            row = config_df[config_df['config'] == cfg_name]
+                            if not row.empty:
+                                return row['value'].values[0]
+                            return None
+                            
+                        product = get_val('experiment_config.product_name')
+                        requester = get_val('experiment_config.experiment_config.guitar_requester')
+                        cli_version = get_val('model_config.gemini_cli_version')
+                        orchestrator = get_val('experiment_config.orchestrator')
+                        eval_group = get_val('experiment_config.eval_group')
+                        
+                        if product: interesting_configs['Product'] = product
+                        if requester: interesting_configs['Requester'] = requester
+                        if cli_version: interesting_configs['CLI Version'] = cli_version
+                        if orchestrator: interesting_configs['Orchestrator'] = orchestrator
+                        if eval_group: interesting_configs['Eval Group'] = eval_group
+                        
+                    except Exception as e:
+                        import logging
+                        logging.warning(f"Error reading configs for summary: {e}")
+
+                if interesting_configs:
+                    with me.box(style=me.Style(display="flex", flex_wrap="wrap", gap="24px", padding=me.Padding.all("16px"), background="#f8fafc", border_radius="8px", border=me.Border.all(me.BorderSide(width="1px", color="#e2e8f0")), margin=me.Margin(bottom="16px"))):
+                        for k, v in interesting_configs.items():
+                            with me.box(style=me.Style(display="flex", flex_direction="column", gap="4px")):
+                                me.text(k, style=me.Style(font_size="16px", color="#64748b", font_weight="600", text_transform="uppercase"))
+                                me.text(str(v), style=me.Style(font_size="20px", color="#0f172a", font_weight="500"))
+
+
     
                 if state.selected_tab == "Dashboard":
                     dashboard.dashboard_component(
@@ -1321,19 +1361,21 @@ def render_app_content():
                             f"scores.csv not found in {state.selected_directory}"
                         )
                 elif state.selected_tab == "Summary":
-                    summary_path = os.path.join(
-                        results_dir, state.selected_directory, "summary.csv"
-                    )
-                    if os.path.exists(summary_path):
-                        try:
-                            df = pd.read_csv(summary_path)
-                            me.table(data_frame=df)
-                        except Exception as e:
-                            me.text(f"Error reading summary.csv: {e}")
-                    else:
-                        me.text(
-                            f"summary.csv not found in {state.selected_directory}"
+                        summary_path = os.path.join(
+                            results_dir, state.selected_directory, "summary.csv"
                         )
+                        if os.path.exists(summary_path):
+                            try:
+                                df = pd.read_csv(summary_path)
+                                me.table(data_frame=df)
+                            except Exception as e:
+                                me.text(f"Error reading summary.csv: {e}")
+                        else:
+                            me.text(
+                                f"summary.csv not found in {state.selected_directory}"
+                            )
+
+
             else:
                             from trends import trends_component
                             state = me.state(State)
