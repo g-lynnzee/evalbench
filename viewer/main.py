@@ -5,6 +5,7 @@ import yaml
 import logging
 import json
 import subprocess
+from state import State
 
 try:
     # Try to read version from file (created during build)
@@ -74,21 +75,15 @@ def df_to_config(df: pd.DataFrame) -> dict:
     return original_dict
 
 
-@me.stateclass
-class State:
-    selected_directory: str
-    selected_tab: str = "Dashboard"
-    conversation_index: int = 0
-    eval_summaries: str = ""
-    eval_id_filter: str = ""
-    product_filter: str = ""
-    requester_filter: str = ""
-    sort_column: str = "date"
-    sort_descending: bool = True
-    open_dropdown: str = ""
+
 
 
 def get_results_dir():
+    # Try to read from environment variable
+    res_dir = os.environ.get("RESULTS_DIR")
+    if res_dir:
+        return res_dir
+        
     # Check multiple locations for results directory
     results_dir_candidates = [
         "/tmp_session_files/results",
@@ -212,328 +207,154 @@ def on_load(e: me.LoadEvent):
         state.selected_directory = job_id
 
 
-@me.page(
-    path="/",
-    title="EvalBench Viewer",
-    on_load=on_load,
-    security_policy=me.SecurityPolicy(
-        dangerously_disable_trusted_types=True,
-        cross_origin_opener_policy="same-origin",
-    ),
-    stylesheets=[
-        "data:",
-        "/static/custom.css",
-    ],
-)
-def app():
-    with me.box(
-        style=me.Style(
-            background="#f8fafc",
-            min_height="100vh",
-            width="100%",
-        )
-    ):
-        render_app_content()
 
-
-def render_app_content():
+def list_view_component():
+    global json
+    import os
     state = me.state(State)
     results_dir = get_results_dir()
-
     directories = []
     if os.path.exists(results_dir):
-        # List directories only
         directories = [
             d
             for d in os.listdir(results_dir)
             if os.path.isdir(os.path.join(results_dir, d))
         ]
-
-    def on_title_click(e: me.ClickEvent):
-        state.selected_directory = ""
-        state.conversation_index = 0
-
-    # Full-width header bar
-    with me.box(
-        style=me.Style(
-            background="#1e293b",
-            padding=me.Padding.symmetric(vertical="16px", horizontal="5%"),
-            margin=me.Margin(bottom="24px"),
-            display="flex",
-            justify_content="space-between",
-            align_items="center",
-        )
-    ):
-        me.button(
-            "EvalBench Viewer",
-            on_click=on_title_click,
+        with me.box(
             style=me.Style(
-                color="#f8fafc",
-                font_size="22px",
-                font_weight="700",
-                letter_spacing="0.5px",
-                background="transparent",
-                padding=me.Padding.all("0px"),
-                margin=me.Margin.all("0px"),
-                border=me.Border.all(me.BorderSide(width="0px")),
-                text_align="left",
-            ),
-        )
-
-        if GIT_VERSION != "unknown":
-            with me.box(
-                style=me.Style(
-                    font_size="12px",
-                    color="#94a3b8",
-                )
-            ):
-                me.markdown(
-                    f"[Git: {GIT_VERSION}](https://github.com/GoogleCloudPlatform/evalbench/commit/{GIT_VERSION})"
-                )
-
-    # Centered content at 90% browser width
-    with me.box(
-        style=me.Style(
-            width="90%",
-            margin=me.Margin.symmetric(horizontal="auto"),
-            display="flex",
-            flex_direction="column",
-            gap="16px",
-            background="#ffffff",
-            padding=me.Padding.all("24px"),
-            border_radius="8px",
-            box_shadow="0 4px 6px -1px rgba(0, 0, 0, 0.1)",
-            color="#1e293b",
-        )
-    ):
-
-        if state.selected_directory:
-
-            def on_tab_change(e: me.ButtonToggleChangeEvent):
-                state.selected_tab = e.value
-
-            me.button_toggle(
-                value=state.selected_tab,
-                buttons=[
-                    me.ButtonToggleButton(
-                        label="Dashboard", value="Dashboard"
-                    ),
-                    me.ButtonToggleButton(
-                        label="Configs", value="Configs"
-                    ),
-                    # me.ButtonToggleButton(label="Evals", value="Evals"),
-                    # me.ButtonToggleButton(label="Scores", value="Scores"),
-                    me.ButtonToggleButton(
-                        label="Conversations", value="Conversations"
-                    ),
-                    # me.ButtonToggleButton(label="Summary", value="Summary"),
-                ],
-                on_change=on_tab_change,
+                background="#ffffff",
+                padding=me.Padding.all("24px"),
+                border_radius="12px",
+                border=me.Border.all(
+                    me.BorderSide(
+                        width="1px",
+                        color="#e5e7eb",
+                        style="solid",
+                    )
+                ),
+                box_shadow="0 1px 3px rgba(0,0,0,0.06)",
+                text_align="center",
+                margin=me.Margin(top="16px"),
             )
-
-            if state.selected_tab == "Dashboard":
-                dashboard.dashboard_component(
-                    os.path.join(results_dir, state.selected_directory)
-                )
-            elif state.selected_tab == "Conversations":
-
-                def on_prev_conversation(e: me.ClickEvent):
-                    s = me.state(State)
-                    if s.conversation_index > 0:
-                        s.conversation_index -= 1
-
-                def on_next_conversation(e: me.ClickEvent):
-                    s = me.state(State)
-                    s.conversation_index += 1
-
-                conversations.conversations_component(
-                    os.path.join(results_dir, state.selected_directory),
-                    conversation_index=state.conversation_index,
-                    on_prev=on_prev_conversation,
-                    on_next=on_next_conversation,
-                )
-            elif state.selected_tab == "Configs":
-                config_path = os.path.join(
-                    results_dir, state.selected_directory, "configs.csv"
-                )
-                if os.path.exists(config_path):
-                    try:
-                        df = pd.read_csv(config_path)
-                        config = df_to_config(df)
-                        me.code(yaml.dump(config))
-                    except Exception as e:
-                        me.text(f"Error reading configs.csv: {e}")
-                else:
-                    me.text(
-                        f"configs.csv not found in {state.selected_directory}"
-                    )
-            elif state.selected_tab == "Evals":
-                evals_path = os.path.join(
-                    results_dir, state.selected_directory, "evals.csv"
-                )
-                if os.path.exists(evals_path):
-                    try:
-                        df = pd.read_csv(evals_path)
-                        details = get_eval_details(
-                            results_dir, state.selected_directory
-                        )
-                        df.insert(0, "orchestrator", details["orchestrator"])
-                        me.table(data_frame=df)
-                    except Exception as e:
-                        me.text(f"Error reading evals.csv: {e}")
-                else:
-                    me.text(
-                        f"evals.csv not found in {state.selected_directory}"
-                    )
-            elif state.selected_tab == "Scores":
-                scores_path = os.path.join(
-                    results_dir, state.selected_directory, "scores.csv"
-                )
-                if os.path.exists(scores_path):
-                    try:
-                        df = pd.read_csv(scores_path)
-                        me.table(data_frame=df)
-                    except Exception as e:
-                        me.text(f"Error reading scores.csv: {e}")
-                else:
-                    me.text(
-                        f"scores.csv not found in {state.selected_directory}"
-                    )
-            elif state.selected_tab == "Summary":
-                summary_path = os.path.join(
-                    results_dir, state.selected_directory, "summary.csv"
-                )
-                if os.path.exists(summary_path):
-                    try:
-                        df = pd.read_csv(summary_path)
-                        me.table(data_frame=df)
-                    except Exception as e:
-                        me.text(f"Error reading summary.csv: {e}")
-                else:
-                    me.text(
-                        f"summary.csv not found in {state.selected_directory}"
-                    )
-        else:
-            with me.box(
+        ):
+            me.text(
+                "Welcome to EvalBench Viewer",
                 style=me.Style(
-                    background="#ffffff",
-                    padding=me.Padding.all("24px"),
-                    border_radius="12px",
-                    border=me.Border.all(
-                        me.BorderSide(
-                            width="1px",
-                            color="#e5e7eb",
-                            style="solid",
-                        )
-                    ),
-                    box_shadow="0 1px 3px rgba(0,0,0,0.06)",
-                    text_align="center",
-                    margin=me.Margin(top="16px"),
-                )
-            ):
-                me.text(
-                    "Welcome to EvalBench Viewer",
-                    style=me.Style(
-                        font_size="24px",
-                        font_weight="700",
-                        color="#1f2937",
-                        margin=me.Margin(bottom="8px"),
-                    ),
-                )
-                me.text(
-                    f"Found {len(directories)} evaluation runs. "
-                    "Click on an Eval ID in the table below to explore "
-                    "the results.",
-                    style=me.Style(
-                        font_size="16px",
-                        color="#6b7280",
-                        margin=me.Margin(bottom="16px"),
-                    ),
-                )
-                if directories:
-                    # Compute summaries if empty
-                    s = me.state(State)
-                    summaries = []
-                    if s.eval_summaries:
-                        try:
-                            summaries = json.loads(s.eval_summaries)
-                        except Exception:
-                            summaries = []
-
-                    if not summaries:
-                        for d in sorted(directories):
-                            details = get_eval_details(results_dir, d)
-                            summaries.append({
-                                "id": d,
-                                "date": details.get("date", "N/A"),
-                                "product": details["product"],
-                                "requester": details.get("requester", "N/A"),
-                                "exact_match": details["exact_match"],
-                                "llmrater": details["llmrater"],
-                                "trajectory_matcher": details[
-                                    "trajectory_matcher"
-                                ],
-                                "turn_count": details["turn_count"],
-                                "executable": details["executable"],
-                                "token_consumption": details[
-                                    "token_consumption"
-                                ],
-                                "end_to_end_latency": details[
-                                    "end_to_end_latency"
-                                ]
-                            })
-                        s.eval_summaries = json.dumps(summaries)
-
-                    # Sort by selected column
-                    reverse = state.sort_descending
-                    col = state.sort_column
-
-                    def get_sort_key(x):
-                        val = x.get(col, "N/A")
-
-                        # Handle numbers and percentages
-                        if col in [
-                            "exact_match",
-                            "llmrater",
-                            "trajectory_matcher",
-                            "executable",
-                        ]:
-                            if val == "N/A":
-                                return -1.0 if reverse else 101.0
-                            if val.endswith("%"):
-                                try:
-                                    return float(val.rstrip("%"))
-                                except ValueError:
-                                    return -1.0 if reverse else 101.0
-                            return -1.0 if reverse else 101.0
-
-                        elif col in [
-                            "turn_count",
-                            "token_consumption",
-                            "end_to_end_latency",
-                        ]:
-                            if val == "N/A":
-                                return -1.0 if reverse else 1e12
-                            try:
-                                return float(val)
-                            except ValueError:
-                                return -1.0 if reverse else 1e12
-
-                        # String columns (product, requester, id, date)
+                    font_size="24px",
+                    font_weight="700",
+                    color="#1f2937",
+                    margin=me.Margin(bottom="8px"),
+                ),
+            )
+            me.text(
+                f"Found {len(directories)} evaluation runs. "
+                "Click on an Eval ID in the table below to explore "
+                "the results.",
+                style=me.Style(
+                    font_size="16px",
+                    color="#6b7280",
+                    margin=me.Margin(bottom="16px"),
+                ),
+            )
+            if directories:
+                # Compute summaries if empty
+                s = me.state(State)
+                summaries = []
+                if s.eval_summaries:
+                    try:
+                        summaries = json.loads(s.eval_summaries)
+                    except Exception:
+                        summaries = []
+    
+                if not summaries:
+                    for d in sorted(directories):
+                        details = get_eval_details(results_dir, d)
+                        summaries.append({
+                            "id": d,
+                            "date": details.get("date", "N/A"),
+                            "product": details["product"],
+                            "requester": details.get("requester", "N/A"),
+                            "exact_match": details["exact_match"],
+                            "llmrater": details["llmrater"],
+                            "trajectory_matcher": details[
+                                "trajectory_matcher"
+                            ],
+                            "turn_count": details["turn_count"],
+                            "executable": details["executable"],
+                            "token_consumption": details[
+                                "token_consumption"
+                            ],
+                            "end_to_end_latency": details[
+                                "end_to_end_latency"
+                            ]
+                        })
+                    s.eval_summaries = json.dumps(summaries)
+    
+                # Sort by selected column
+                reverse = state.sort_descending
+                col = state.sort_column
+    
+                def get_sort_key(x):
+                    val = x.get(col, "N/A")
+    
+                    # Handle numbers and percentages
+                    if col in [
+                        "exact_match",
+                        "llmrater",
+                        "trajectory_matcher",
+                        "executable",
+                    ]:
                         if val == "N/A":
-                            return "" if reverse else "\xff\xff\xff\xff"
-                        return str(val)
-
-                    summaries.sort(key=get_sort_key, reverse=reverse)
-
-                    # Extract unique values for filters from ALL summaries
-                    all_summaries = []
-                    if s.eval_summaries:
+                            return -1.0 if reverse else 101.0
+                        if val.endswith("%"):
+                            try:
+                                return float(val.rstrip("%"))
+                            except ValueError:
+                                return -1.0 if reverse else 101.0
+                        return -1.0 if reverse else 101.0
+    
+                    elif col in [
+                        "turn_count",
+                        "token_consumption",
+                        "end_to_end_latency",
+                    ]:
+                        if val == "N/A":
+                            return -1.0 if reverse else 1e12
                         try:
-                            all_summaries = json.loads(s.eval_summaries)
-                        except Exception:
-                            all_summaries = []
-
+                            return float(val)
+                        except ValueError:
+                            return -1.0 if reverse else 1e12
+    
+                    # String columns (product, requester, id, date)
+                    if val == "N/A":
+                        return "" if reverse else "\xff\xff\xff\xff"
+                    return str(val)
+    
+                summaries.sort(key=get_sort_key, reverse=reverse)
+    
+                # Extract unique values for filters from ALL summaries
+                all_summaries = []
+                if s.eval_summaries:
+                    try:
+                        all_summaries = json.loads(s.eval_summaries)
+                    except Exception:
+                        all_summaries = []
+    
+                filters_file = os.path.join(results_dir, "filters_cache.json")
+                if os.path.exists(filters_file):
+                    try:
+                        with open(filters_file, "r") as f:
+                            filters_data = json.load(f)
+                        products = filters_data.get("products", [])
+                        requesters = filters_data.get("requesters", [])
+                        eval_ids = filters_data.get("eval_ids", [])
+                    except Exception as e:
+                        import logging
+                        logging.error(f"Error reading filters cache: {e}")
+                        products = []
+                        requesters = []
+                        eval_ids = []
+                else:
                     products = sorted(
                         list(
                             set(
@@ -553,43 +374,407 @@ def render_app_content():
                         )
                     )
                     eval_ids = sorted([x["id"] for x in all_summaries])
-
-                    # Apply filters
-                    if state.eval_id_filter:
-                        summaries = [
-                            x
-                            for x in summaries
-                            if x["id"] == state.eval_id_filter
-                        ]
-                    if state.product_filter:
-                        summaries = [
-                            x
-                            for x in summaries
-                            if x["product"] == state.product_filter
-                        ]
-                    if state.requester_filter:
-                        summaries = [
-                            x
-                            for x in summaries
-                            if x.get("requester", "N/A")
-                            == state.requester_filter
-                        ]
-
-                    # Render filters UI
+    
+                # Apply filters
+                if state.eval_id_filter:
+                    summaries = [
+                        x
+                        for x in summaries
+                        if x["id"] == state.eval_id_filter
+                    ]
+                if state.product_filter:
+                    summaries = [
+                        x
+                        for x in summaries
+                        if x["product"] == state.product_filter
+                    ]
+                if state.requester_filter:
+                    summaries = [
+                        x
+                        for x in summaries
+                        if x.get("requester", "N/A")
+                        == state.requester_filter
+                    ]
+    
+                # Render filters UI
+                with me.box(
+                    style=me.Style(
+                        display="flex",
+                        flex_direction="row",
+                        gap="24px",
+                        margin=me.Margin(top="16px", bottom="24px"),
+                        padding=me.Padding.all("16px"),
+                        background="#ffffff",
+                        border_radius="12px",
+                        box_shadow=(
+                            "0 1px 3px 0 rgba(0, 0, 0, 0.1), "
+                            "0 1px 2px -1px rgba(0, 0, 0, 0.1)"
+                        ),
+                        align_items="center",
+                        border=me.Border.all(
+                            me.BorderSide(
+                                width="1px",
+                                color="#e2e8f0",
+                                style="solid",
+                            )
+                        ),
+                    )
+                ):
+                    def toggle_eval_id_dropdown(e: me.ClickEvent):
+                        st = me.state(State)
+                        if st.open_dropdown == "eval_id":
+                            st.open_dropdown = ""
+                        else:
+                            st.open_dropdown = "eval_id"
+    
+                    def make_eval_id_handler(val):
+                        def handler(e: me.ClickEvent):
+                            st = me.state(State)
+                            st.eval_id_filter = val
+                            st.open_dropdown = ""
+    
+                        handler.__name__ = f"click_eval_id_{val}"
+                        return handler
+    
                     with me.box(
                         style=me.Style(
-                            display="flex",
-                            flex_direction="row",
-                            gap="24px",
-                            margin=me.Margin(top="16px", bottom="24px"),
-                            padding=me.Padding.all("16px"),
-                            background="#ffffff",
-                            border_radius="12px",
-                            box_shadow=(
-                                "0 1px 3px 0 rgba(0, 0, 0, 0.1), "
-                                "0 1px 2px -1px rgba(0, 0, 0, 0.1)"
+                            position="relative",
+                            width="200px",
+                        )
+                    ):
+                        # The Box acting as Dropdown Trigger
+                        with me.box(
+                            style=me.Style(
+                                background="#ffffff",
+                                border=me.Border.all(
+                                    me.BorderSide(
+                                        width="1px",
+                                        color="#e2e8f0",
+                                    )
+                                ),
+                                border_radius="4px",
+                                padding=me.Padding.all("8px"),
+                                cursor="pointer",
                             ),
-                            align_items="center",
+                            on_click=toggle_eval_id_dropdown,
+                        ):
+                            me.text(
+                                state.eval_id_filter
+                                if state.eval_id_filter
+                                else "Select Eval ID",
+                                style=me.Style(
+                                    color="#1f2937"
+                                ),
+                            )
+    
+                        # The Popup List
+                        if state.open_dropdown == "eval_id":
+                            with me.box(
+                                style=me.Style(
+                                    position="absolute",
+                                    top="100%",
+                                    left="0",
+                                    z_index=10,
+                                    background="#ffffff",
+                                    border=me.Border.all(
+                                        me.BorderSide(
+                                            width="1px",
+                                            color="#e2e8f0",
+                                        )
+                                    ),
+                                    border_radius="4px",
+                                    width="100%",
+                                    max_height="200px",
+                                    overflow_y="auto",
+                                )
+                            ):
+                                # All option
+                                with me.box(
+                                    style=me.Style(
+                                        padding=me.Padding.all("8px"),
+                                        cursor="pointer",
+                                    ),
+                                    on_click=make_eval_id_handler(""),
+                                ):
+                                    me.text(
+                                        "All",
+                                        style=me.Style(
+                                            color="#1f2937"
+                                        ),
+                                    )
+    
+                                for d in eval_ids:
+                                    with me.box(
+                                        style=me.Style(
+                                            padding=me.Padding.all("8px"),
+                                            cursor="pointer",
+                                        ),
+                                        on_click=make_eval_id_handler(d),
+                                    ):
+                                        me.text(
+                                            d,
+                                            style=me.Style(
+                                                color="#1f2937"
+                                            ),
+                                        )
+    
+                    # Product Filter with Floating Autocomplete
+                    def toggle_product_dropdown(e: me.ClickEvent):
+                        st = me.state(State)
+                        if st.open_dropdown == "product":
+                            st.open_dropdown = ""
+                        else:
+                            st.open_dropdown = "product"
+    
+                    def make_prod_dropdown_handler(val):
+                        def handler(e: me.ClickEvent):
+                            st = me.state(State)
+                            st.product_filter = val
+                            st.open_dropdown = ""
+    
+                        handler.__name__ = f"click_prod_dd_{val}"
+                        return handler
+    
+                    mk_prod_dd = make_prod_dropdown_handler
+    
+                    with me.box(
+                        style=me.Style(
+                            position="relative",
+                            width="200px",
+                        )
+                    ):
+                        # The Box acting as Dropdown Trigger
+                        with me.box(
+                            style=me.Style(
+                                background="#ffffff",
+                                border=me.Border.all(
+                                    me.BorderSide(
+                                        width="1px",
+                                        color="#e2e8f0",
+                                    )
+                                ),
+                                border_radius="4px",
+                                padding=me.Padding.all("8px"),
+                                cursor="pointer",
+                            ),
+                            on_click=toggle_product_dropdown,
+                        ):
+                            me.text(
+                                state.product_filter
+                                if state.product_filter
+                                else "Filter by Product",
+                                style=me.Style(
+                                    color="#1f2937"
+                                ),
+                            )
+    
+                        # The Popup List
+                        if state.open_dropdown == "product":
+                            with me.box(
+                                style=me.Style(
+                                    position="absolute",
+                                    top="100%",
+                                    left="0",
+                                    z_index=10,
+                                    background="#ffffff",
+                                    border=me.Border.all(
+                                        me.BorderSide(
+                                            width="1px",
+                                            color="#e2e8f0",
+                                        )
+                                    ),
+                                    border_radius="4px",
+                                    width="100%",
+                                    max_height="200px",
+                                    overflow_y="auto",
+                                )
+                            ):
+                                # All option
+                                with me.box(
+                                    style=me.Style(
+                                        padding=me.Padding.all("8px"),
+                                        cursor="pointer",
+                                    ),
+                                    on_click=mk_prod_dd(""),
+                                ):
+                                    me.text(
+                                        "All",
+                                        style=me.Style(
+                                            color="#1f2937"
+                                        ),
+                                    )
+    
+                                for p in products:
+                                    with me.box(
+                                        style=me.Style(
+                                            padding=me.Padding.all("8px"),
+                                            cursor="pointer",
+                                        ),
+                                        on_click=mk_prod_dd(p),
+                                    ):
+                                        me.text(
+                                            p,
+                                            style=me.Style(
+                                                color="#1f2937"
+                                            ),
+                                        )
+    
+                    # Requester Filter with Floating Autocomplete
+                    def toggle_requester_dropdown(e: me.ClickEvent):
+                        st = me.state(State)
+                        if st.open_dropdown == "requester":
+                            st.open_dropdown = ""
+                        else:
+                            st.open_dropdown = "requester"
+    
+                    def make_req_dropdown_handler(val):
+                        def handler(e: me.ClickEvent):
+                            st = me.state(State)
+                            st.requester_filter = val
+                            st.open_dropdown = ""
+    
+                        handler.__name__ = f"click_req_dd_{val}"
+                        return handler
+    
+                    mk_req_dd = make_req_dropdown_handler
+    
+                    with me.box(
+                        style=me.Style(
+                            position="relative",
+                            width="200px",
+                        )
+                    ):
+                        # The Box acting as Dropdown Trigger
+                        with me.box(
+                            style=me.Style(
+                                background="#ffffff",
+                                border=me.Border.all(
+                                    me.BorderSide(
+                                        width="1px",
+                                        color="#e2e8f0",
+                                    )
+                                ),
+                                border_radius="4px",
+                                padding=me.Padding.all("8px"),
+                                cursor="pointer",
+                            ),
+                            on_click=toggle_requester_dropdown,
+                        ):
+                            me.text(
+                                state.requester_filter
+                                if state.requester_filter
+                                else "Filter by Requester",
+                                style=me.Style(
+                                    color="#1f2937"
+                                ),
+                            )
+    
+                        # The Popup List
+                        if state.open_dropdown == "requester":
+                            with me.box(
+                                style=me.Style(
+                                    position="absolute",
+                                    top="100%",
+                                    left="0",
+                                    z_index=10,
+                                    background="#ffffff",
+                                    border=me.Border.all(
+                                        me.BorderSide(
+                                            width="1px",
+                                            color="#e2e8f0",
+                                        )
+                                    ),
+                                    border_radius="4px",
+                                    width="100%",
+                                    max_height="200px",
+                                    overflow_y="auto",
+                                )
+                            ):
+                                # All option
+                                with me.box(
+                                    style=me.Style(
+                                        padding=me.Padding.all("8px"),
+                                        cursor="pointer",
+                                    ),
+                                    on_click=mk_req_dd(""),
+                                ):
+                                    me.text(
+                                        "All",
+                                        style=me.Style(
+                                            color="#1f2937"
+                                        ),
+                                    )
+    
+                                for r in requesters:
+                                    with me.box(
+                                        style=me.Style(
+                                            padding=me.Padding.all("8px"),
+                                            cursor="pointer",
+                                        ),
+                                        on_click=mk_req_dd(r),
+                                    ):
+                                        me.text(
+                                            r,
+                                            style=me.Style(
+                                                color="#1f2937"
+                                            ),
+                                        )
+    
+                def on_sort_click(col_name):
+                    s = me.state(State)
+                    if s.sort_column == col_name:
+                        s.sort_descending = not s.sort_descending
+                    else:
+                        s.sort_column = col_name
+                        s.sort_descending = True
+    
+                def click_id(e):
+                    on_sort_click("id")
+    
+                def click_date(e):
+                    on_sort_click("date")
+    
+                def click_product(e):
+                    on_sort_click("product")
+    
+                def click_requester(e):
+                    on_sort_click("requester")
+    
+                def click_traj(e):
+                    on_sort_click("trajectory_matcher")
+    
+                def click_turns(e):
+                    on_sort_click("turn_count")
+    
+                def click_exec(e):
+                    on_sort_click("executable")
+    
+                def click_tokens(e):
+                    on_sort_click("token_consumption")
+    
+                def click_latency(e):
+                    on_sort_click("end_to_end_latency")
+    
+                sort_handlers = {
+                    "id": click_id,
+                    "date": click_date,
+                    "product": click_product,
+                    "requester": click_requester,
+                    "trajectory_matcher": click_traj,
+                    "turn_count": click_turns,
+                    "executable": click_exec,
+                    "token_consumption": click_tokens,
+                    "end_to_end_latency": click_latency,
+                }
+    
+                def render_header_cell(h_label, h_col, h_width):
+                    with me.box(
+                        style=me.Style(
+                            display="table-cell",
+                            padding=me.Padding.symmetric(
+                                vertical="12px", horizontal="16px"
+                            ),
+                            text_align="center",
                             border=me.Border.all(
                                 me.BorderSide(
                                     width="1px",
@@ -597,716 +782,598 @@ def render_app_content():
                                     style="solid",
                                 )
                             ),
-                        )
+                            cursor="pointer",
+                            width=h_width,
+                            white_space="nowrap" if h_width else None,
+                            background="#f8fafc",
+                        ),
+                        on_click=sort_handlers[h_col],
                     ):
-                        def toggle_eval_id_dropdown(e: me.ClickEvent):
-                            st = me.state(State)
-                            if st.open_dropdown == "eval_id":
-                                st.open_dropdown = ""
-                            else:
-                                st.open_dropdown = "eval_id"
-
-                        def make_eval_id_handler(val):
-                            def handler(e: me.ClickEvent):
-                                st = me.state(State)
-                                st.eval_id_filter = val
-                                st.open_dropdown = ""
-
-                            handler.__name__ = f"click_eval_id_{val}"
-                            return handler
-
                         with me.box(
                             style=me.Style(
-                                position="relative",
-                                width="200px",
+                                display="flex",
+                                align_items="center",
+                                justify_content="center",
+                                color="#475569",
                             )
                         ):
-                            # The Box acting as Dropdown Trigger
-                            with me.box(
-                                style=me.Style(
-                                    background="#ffffff",
-                                    border=me.Border.all(
-                                        me.BorderSide(
-                                            width="1px",
-                                            color="#e2e8f0",
-                                        )
-                                    ),
-                                    border_radius="4px",
-                                    padding=me.Padding.all("8px"),
-                                    cursor="pointer",
-                                ),
-                                on_click=toggle_eval_id_dropdown,
-                            ):
-                                me.text(
-                                    state.eval_id_filter
-                                    if state.eval_id_filter
-                                    else "Select Eval ID",
-                                    style=me.Style(
-                                        color="#1f2937"
-                                    ),
-                                )
-
-                            # The Popup List
-                            if state.open_dropdown == "eval_id":
-                                with me.box(
-                                    style=me.Style(
-                                        position="absolute",
-                                        top="100%",
-                                        left="0",
-                                        z_index=10,
-                                        background="#ffffff",
-                                        border=me.Border.all(
-                                            me.BorderSide(
-                                                width="1px",
-                                                color="#e2e8f0",
-                                            )
-                                        ),
-                                        border_radius="4px",
-                                        width="100%",
-                                        max_height="200px",
-                                        overflow_y="auto",
-                                    )
-                                ):
-                                    # All option
-                                    with me.box(
-                                        style=me.Style(
-                                            padding=me.Padding.all("8px"),
-                                            cursor="pointer",
-                                        ),
-                                        on_click=make_eval_id_handler(""),
-                                    ):
-                                        me.text(
-                                            "All",
-                                            style=me.Style(
-                                                color="#1f2937"
-                                            ),
-                                        )
-
-                                    for d in eval_ids:
-                                        with me.box(
-                                            style=me.Style(
-                                                padding=me.Padding.all("8px"),
-                                                cursor="pointer",
-                                            ),
-                                            on_click=make_eval_id_handler(d),
-                                        ):
-                                            me.text(
-                                                d,
-                                                style=me.Style(
-                                                    color="#1f2937"
-                                                ),
-                                            )
-
-                        # Product Filter with Floating Autocomplete
-                        def toggle_product_dropdown(e: me.ClickEvent):
-                            st = me.state(State)
-                            if st.open_dropdown == "product":
-                                st.open_dropdown = ""
-                            else:
-                                st.open_dropdown = "product"
-
-                        def make_prod_dropdown_handler(val):
-                            def handler(e: me.ClickEvent):
-                                st = me.state(State)
-                                st.product_filter = val
-                                st.open_dropdown = ""
-
-                            handler.__name__ = f"click_prod_dd_{val}"
-                            return handler
-
-                        mk_prod_dd = make_prod_dropdown_handler
-
-                        with me.box(
-                            style=me.Style(
-                                position="relative",
-                                width="200px",
+                            me.text(h_label)
+                            s = me.state(State)
+                            arrow = (
+                                " ↓" if s.sort_descending else " ↑"
                             )
-                        ):
-                            # The Box acting as Dropdown Trigger
-                            with me.box(
-                                style=me.Style(
-                                    background="#ffffff",
-                                    border=me.Border.all(
-                                        me.BorderSide(
-                                            width="1px",
-                                            color="#e2e8f0",
-                                        )
-                                    ),
-                                    border_radius="4px",
-                                    padding=me.Padding.all("8px"),
-                                    cursor="pointer",
-                                ),
-                                on_click=toggle_product_dropdown,
-                            ):
-                                me.text(
-                                    state.product_filter
-                                    if state.product_filter
-                                    else "Filter by Product",
-                                    style=me.Style(
-                                        color="#1f2937"
-                                    ),
-                                )
-
-                            # The Popup List
-                            if state.open_dropdown == "product":
-                                with me.box(
-                                    style=me.Style(
-                                        position="absolute",
-                                        top="100%",
-                                        left="0",
-                                        z_index=10,
-                                        background="#ffffff",
-                                        border=me.Border.all(
-                                            me.BorderSide(
-                                                width="1px",
-                                                color="#e2e8f0",
-                                            )
-                                        ),
-                                        border_radius="4px",
-                                        width="100%",
-                                        max_height="200px",
-                                        overflow_y="auto",
-                                    )
-                                ):
-                                    # All option
-                                    with me.box(
-                                        style=me.Style(
-                                            padding=me.Padding.all("8px"),
-                                            cursor="pointer",
-                                        ),
-                                        on_click=mk_prod_dd(""),
-                                    ):
-                                        me.text(
-                                            "All",
-                                            style=me.Style(
-                                                color="#1f2937"
-                                            ),
-                                        )
-
-                                    for p in products:
-                                        with me.box(
-                                            style=me.Style(
-                                                padding=me.Padding.all("8px"),
-                                                cursor="pointer",
-                                            ),
-                                            on_click=mk_prod_dd(p),
-                                        ):
-                                            me.text(
-                                                p,
-                                                style=me.Style(
-                                                    color="#1f2937"
-                                                ),
-                                            )
-
-                        # Requester Filter with Floating Autocomplete
-                        def toggle_requester_dropdown(e: me.ClickEvent):
-                            st = me.state(State)
-                            if st.open_dropdown == "requester":
-                                st.open_dropdown = ""
-                            else:
-                                st.open_dropdown = "requester"
-
-                        def make_req_dropdown_handler(val):
-                            def handler(e: me.ClickEvent):
-                                st = me.state(State)
-                                st.requester_filter = val
-                                st.open_dropdown = ""
-
-                            handler.__name__ = f"click_req_dd_{val}"
-                            return handler
-
-                        mk_req_dd = make_req_dropdown_handler
-
-                        with me.box(
-                            style=me.Style(
-                                position="relative",
-                                width="200px",
+                            arrow_str = (
+                                arrow
+                                if s.sort_column == h_col
+                                else ""
                             )
-                        ):
-                            # The Box acting as Dropdown Trigger
-                            with me.box(
+                            me.text(
+                                arrow_str,
                                 style=me.Style(
-                                    background="#ffffff",
-                                    border=me.Border.all(
-                                        me.BorderSide(
-                                            width="1px",
-                                            color="#e2e8f0",
-                                        )
-                                    ),
-                                    border_radius="4px",
-                                    padding=me.Padding.all("8px"),
-                                    cursor="pointer",
+                                    font_weight="bold",
+                                    color="#0284c7",
+                                    font_size="14px",
+                                    margin=me.Margin(left="4px"),
                                 ),
-                                on_click=toggle_requester_dropdown,
-                            ):
-                                me.text(
-                                    state.requester_filter
-                                    if state.requester_filter
-                                    else "Filter by Requester",
-                                    style=me.Style(
-                                        color="#1f2937"
-                                    ),
-                                )
-
-                            # The Popup List
-                            if state.open_dropdown == "requester":
-                                with me.box(
-                                    style=me.Style(
-                                        position="absolute",
-                                        top="100%",
-                                        left="0",
-                                        z_index=10,
-                                        background="#ffffff",
-                                        border=me.Border.all(
-                                            me.BorderSide(
-                                                width="1px",
-                                                color="#e2e8f0",
-                                            )
-                                        ),
-                                        border_radius="4px",
-                                        width="100%",
-                                        max_height="200px",
-                                        overflow_y="auto",
-                                    )
-                                ):
-                                    # All option
-                                    with me.box(
-                                        style=me.Style(
-                                            padding=me.Padding.all("8px"),
-                                            cursor="pointer",
-                                        ),
-                                        on_click=mk_req_dd(""),
-                                    ):
-                                        me.text(
-                                            "All",
-                                            style=me.Style(
-                                                color="#1f2937"
-                                            ),
-                                        )
-
-                                    for r in requesters:
-                                        with me.box(
-                                            style=me.Style(
-                                                padding=me.Padding.all("8px"),
-                                                cursor="pointer",
-                                            ),
-                                            on_click=mk_req_dd(r),
-                                        ):
-                                            me.text(
-                                                r,
-                                                style=me.Style(
-                                                    color="#1f2937"
-                                                ),
-                                            )
-
-                    def on_sort_click(col_name):
-                        s = me.state(State)
-                        if s.sort_column == col_name:
-                            s.sort_descending = not s.sort_descending
-                        else:
-                            s.sort_column = col_name
-                            s.sort_descending = True
-
-                    def click_id(e):
-                        on_sort_click("id")
-
-                    def click_date(e):
-                        on_sort_click("date")
-
-                    def click_product(e):
-                        on_sort_click("product")
-
-                    def click_requester(e):
-                        on_sort_click("requester")
-
-                    def click_traj(e):
-                        on_sort_click("trajectory_matcher")
-
-                    def click_turns(e):
-                        on_sort_click("turn_count")
-
-                    def click_exec(e):
-                        on_sort_click("executable")
-
-                    def click_tokens(e):
-                        on_sort_click("token_consumption")
-
-                    def click_latency(e):
-                        on_sort_click("end_to_end_latency")
-
-                    sort_handlers = {
-                        "id": click_id,
-                        "date": click_date,
-                        "product": click_product,
-                        "requester": click_requester,
-                        "trajectory_matcher": click_traj,
-                        "turn_count": click_turns,
-                        "executable": click_exec,
-                        "token_consumption": click_tokens,
-                        "end_to_end_latency": click_latency,
-                    }
-
-                    def render_header_cell(h_label, h_col, h_width):
-                        with me.box(
-                            style=me.Style(
-                                display="table-cell",
-                                padding=me.Padding.symmetric(
-                                    vertical="12px", horizontal="16px"
-                                ),
-                                text_align="center",
-                                border=me.Border.all(
-                                    me.BorderSide(
-                                        width="1px",
-                                        color="#e2e8f0",
-                                        style="solid",
-                                    )
-                                ),
-                                cursor="pointer",
-                                width=h_width,
-                                white_space="nowrap" if h_width else None,
-                                background="#f8fafc",
-                            ),
-                            on_click=sort_handlers[h_col],
-                        ):
-                            with me.box(
-                                style=me.Style(
-                                    display="flex",
-                                    align_items="center",
-                                    justify_content="center",
-                                    color="#475569",
-                                )
-                            ):
-                                me.text(h_label)
-                                s = me.state(State)
-                                arrow = (
-                                    " ↓" if s.sort_descending else " ↑"
-                                )
-                                arrow_str = (
-                                    arrow
-                                    if s.sort_column == h_col
-                                    else ""
-                                )
-                                me.text(
-                                    arrow_str,
-                                    style=me.Style(
-                                        font_weight="bold",
-                                        color="#0284c7",
-                                        font_size="14px",
-                                        margin=me.Margin(left="4px"),
-                                    ),
-                                )
-
+                            )
+    
+                with me.box(
+                    style=me.Style(
+                        max_height="600px",
+                        overflow_y="auto",
+                        margin=me.Margin(top="16px"),
+                        display="table",
+                        width="100%",
+                        border=me.Border.all(
+                            me.BorderSide(
+                                width="1px",
+                                color="#e5e7eb",
+                                style="solid",
+                            )
+                        ),
+                        border_radius="8px",
+                        background="#ffffff",
+                    )
+                ):
+                    # Header row
                     with me.box(
                         style=me.Style(
-                            max_height="600px",
-                            overflow_y="auto",
-                            margin=me.Margin(top="16px"),
-                            display="table",
-                            width="100%",
-                            border=me.Border.all(
-                                me.BorderSide(
-                                    width="1px",
-                                    color="#e5e7eb",
-                                    style="solid",
-                                )
-                            ),
-                            border_radius="8px",
-                            background="#ffffff",
+                            display="table-row",
+                            background="#f8fafc",
+                            font_weight="bold",
+                            color="#475569",
+                            font_size="12px",
+                            text_transform="uppercase",
+                            letter_spacing="0.05em",
                         )
                     ):
-                        # Header row
+                        headers = [
+                            ("Eval ID", "id", "36ch"),
+                            ("Date", "date", "24ch"),
+                            ("Product", "product", None),
+                            ("Requester", "requester", None),
+                            (
+                                "Trajectory Matcher",
+                                "trajectory_matcher",
+                                "18ch",
+                            ),
+                            ("Turn Count", "turn_count", "12ch"),
+                            ("Executable", "executable", "12ch"),
+                            (
+                                "Token Consumption",
+                                "token_consumption",
+                                "16ch",
+                            ),
+                            (
+                                "End-to-End Latency",
+                                "end_to_end_latency",
+                                "20ch",
+                            ),
+                        ]
+                        for label, col, width in headers:
+                            render_header_cell(label, col, width)
+    
+                    # Data rows
+                    for idx, item in enumerate(summaries):
+                        d = item["id"]
+                        date_val = item.get("date", "N/A")
+                        prod = item["product"]
+                        req_val = item.get("requester", "N/A")
+                        traj = item.get("trajectory_matcher", "N/A")
+                        turns = item.get("turn_count", "N/A")
+                        exec_val = item.get("executable", "N/A")
+                        tokens = item.get("token_consumption", "N/A")
+                        latency = item.get("end_to_end_latency", "N/A")
+    
+                        bg_color = (
+                            "#ffffff"
+                            if idx % 2 == 0
+                            else "#f8fafc"
+                        )
+    
+                        def make_on_click(dir_name):
+                            def on_click(e: me.ClickEvent):
+                                import logging
+                                logging.info(f"CLICKED EVAL ID: {dir_name}")
+                                s = me.state(State)
+                                s.selected_directory = dir_name
+                            return on_click
+    
                         with me.box(
                             style=me.Style(
                                 display="table-row",
-                                background="#f8fafc",
-                                font_weight="bold",
-                                color="#475569",
-                                font_size="12px",
-                                text_transform="uppercase",
-                                letter_spacing="0.05em",
+                                background=bg_color,
                             )
                         ):
-                            headers = [
-                                ("Eval ID", "id", "36ch"),
-                                ("Date", "date", "24ch"),
-                                ("Product", "product", None),
-                                ("Requester", "requester", None),
-                                (
-                                    "Trajectory Matcher",
-                                    "trajectory_matcher",
-                                    "18ch",
-                                ),
-                                ("Turn Count", "turn_count", "12ch"),
-                                ("Executable", "executable", "12ch"),
-                                (
-                                    "Token Consumption",
-                                    "token_consumption",
-                                    "16ch",
-                                ),
-                                (
-                                    "End-to-End Latency",
-                                    "end_to_end_latency",
-                                    "20ch",
-                                ),
-                            ]
-                            for label, col, width in headers:
-                                render_header_cell(label, col, width)
-
-                        # Data rows
-                        for idx, item in enumerate(summaries):
-                            d = item["id"]
-                            date_val = item.get("date", "N/A")
-                            prod = item["product"]
-                            req_val = item.get("requester", "N/A")
-                            traj = item.get("trajectory_matcher", "N/A")
-                            turns = item.get("turn_count", "N/A")
-                            exec_val = item.get("executable", "N/A")
-                            tokens = item.get("token_consumption", "N/A")
-                            latency = item.get("end_to_end_latency", "N/A")
-
-                            bg_color = (
-                                "#ffffff"
-                                if idx % 2 == 0
-                                else "#f8fafc"
-                            )
-
-                            def make_on_click(dir_name):
-                                def on_click(e: me.ClickEvent):
-                                    s = me.state(State)
-                                    s.selected_directory = dir_name
-                                return on_click
-
+                            # Eval ID as a link/button
                             with me.box(
                                 style=me.Style(
-                                    display="table-row",
-                                    background=bg_color,
+                                    display="table-cell",
+                                    padding=me.Padding.symmetric(
+                                        vertical="10px", horizontal="16px"
+                                    ),
+                                    text_align="center",
+                                    border=me.Border.all(
+                                        me.BorderSide(
+                                            width="1px",
+                                            color="#e2e8f0",
+                                            style="solid",
+                                        )
+                                    ),
+                                    width="36ch",
+                                    white_space="nowrap",
                                 )
                             ):
-                                # Eval ID as a link/button
                                 with me.box(
                                     style=me.Style(
-                                        display="table-cell",
-                                        padding=me.Padding.symmetric(
-                                            vertical="10px", horizontal="16px"
-                                        ),
-                                        text_align="center",
-                                        border=me.Border.all(
-                                            me.BorderSide(
-                                                width="1px",
-                                                color="#e2e8f0",
-                                                style="solid",
-                                            )
-                                        ),
-                                        width="36ch",
-                                        white_space="nowrap",
+                                        display="flex",
+                                        justify_content="center",
+                                        width="100%",
                                     )
                                 ):
-                                    me.button(
-                                        d,
-                                        on_click=make_on_click(d),
-                                        style=me.Style(
-                                            text_align="center",
-                                            background="transparent",
-                                            color="#0284c7",
-                                            font_family="monospace",
-                                            font_size="14px",
-                                            padding=me.Padding.all("0px"),
-                                            margin=me.Margin.all("0px"),
-                                            border=me.Border.all(
-                                                me.BorderSide(width="0px")
-                                            ),
-                                            font_weight="500",
-                                            width="100%",
-                                        ),
-                                    )
-                                with me.box(
+                                    me.markdown(f'<a href="/?job_id={d}" class="pill-link">{d}</a>')
+                            with me.box(
+                                style=me.Style(
+                                    display="table-cell",
+                                    padding=me.Padding.symmetric(
+                                        vertical="10px", horizontal="16px"
+                                    ),
+                                    text_align="center",
+                                    border=me.Border.all(
+                                        me.BorderSide(
+                                            width="1px",
+                                            color="#e2e8f0",
+                                            style="solid",
+                                        )
+                                    ),
+                                    width="24ch",
+                                    white_space="nowrap",
+                                )
+                            ):
+                                me.text(
+                                    date_val,
                                     style=me.Style(
-                                        display="table-cell",
-                                        padding=me.Padding.symmetric(
-                                            vertical="10px", horizontal="16px"
-                                        ),
-                                        text_align="center",
-                                        border=me.Border.all(
-                                            me.BorderSide(
-                                                width="1px",
-                                                color="#e2e8f0",
-                                                style="solid",
-                                            )
-                                        ),
-                                        width="24ch",
-                                        white_space="nowrap",
-                                    )
-                                ):
-                                    me.text(
-                                        date_val,
-                                        style=me.Style(
-                                            color="#334155",
-                                            font_family="monospace",
-                                        ),
-                                    )
-                                with me.box(
+                                        color="#334155",
+                                        font_family="monospace",
+                                    ),
+                                )
+                            with me.box(
+                                style=me.Style(
+                                    display="table-cell",
+                                    padding=me.Padding.symmetric(
+                                        vertical="10px", horizontal="16px"
+                                    ),
+                                    text_align="center",
+                                    border=me.Border.all(
+                                        me.BorderSide(
+                                            width="1px",
+                                            color="#e2e8f0",
+                                            style="solid",
+                                        )
+                                    ),
+                                )
+                            ):
+                                me.text(
+                                    prod,
                                     style=me.Style(
-                                        display="table-cell",
-                                        padding=me.Padding.symmetric(
-                                            vertical="10px", horizontal="16px"
-                                        ),
-                                        text_align="center",
-                                        border=me.Border.all(
-                                            me.BorderSide(
-                                                width="1px",
-                                                color="#e2e8f0",
-                                                style="solid",
-                                            )
-                                        ),
-                                    )
-                                ):
-                                    me.text(
-                                        prod,
-                                        style=me.Style(
-                                            color="#334155"
-                                        ),
-                                    )
-
-                                with me.box(
+                                        color="#334155"
+                                    ),
+                                )
+    
+                            with me.box(
+                                style=me.Style(
+                                    display="table-cell",
+                                    padding=me.Padding.symmetric(
+                                        vertical="10px", horizontal="16px"
+                                    ),
+                                    text_align="center",
+                                    border=me.Border.all(
+                                        me.BorderSide(
+                                            width="1px",
+                                            color="#e2e8f0",
+                                            style="solid",
+                                        )
+                                    ),
+                                )
+                            ):
+                                me.text(
+                                    req_val,
                                     style=me.Style(
-                                        display="table-cell",
-                                        padding=me.Padding.symmetric(
-                                            vertical="10px", horizontal="16px"
-                                        ),
-                                        text_align="center",
-                                        border=me.Border.all(
-                                            me.BorderSide(
-                                                width="1px",
-                                                color="#e2e8f0",
-                                                style="solid",
-                                            )
-                                        ),
-                                    )
-                                ):
-                                    me.text(
-                                        req_val,
-                                        style=me.Style(
-                                            color="#334155"
-                                        ),
-                                    )
-
-                                with me.box(
+                                        color="#334155"
+                                    ),
+                                )
+    
+                            with me.box(
+                                style=me.Style(
+                                    display="table-cell",
+                                    padding=me.Padding.symmetric(
+                                        vertical="10px", horizontal="16px"
+                                    ),
+                                    text_align="center",
+                                    border=me.Border.all(
+                                        me.BorderSide(
+                                            width="1px",
+                                            color="#e2e8f0",
+                                            style="solid",
+                                        )
+                                    ),
+                                    width="18ch",
+                                    white_space="nowrap",
+                                )
+                            ):
+                                me.text(
+                                    traj,
                                     style=me.Style(
-                                        display="table-cell",
-                                        padding=me.Padding.symmetric(
-                                            vertical="10px", horizontal="16px"
-                                        ),
-                                        text_align="center",
-                                        border=me.Border.all(
-                                            me.BorderSide(
-                                                width="1px",
-                                                color="#e2e8f0",
-                                                style="solid",
-                                            )
-                                        ),
-                                        width="18ch",
-                                        white_space="nowrap",
-                                    )
-                                ):
-                                    me.text(
-                                        traj,
-                                        style=me.Style(
-                                            color=get_color_for_pct(traj)
-                                        ),
-                                    )
-
-                                with me.box(
+                                        color=get_color_for_pct(traj)
+                                    ),
+                                )
+    
+                            with me.box(
+                                style=me.Style(
+                                    display="table-cell",
+                                    padding=me.Padding.symmetric(
+                                        vertical="10px", horizontal="16px"
+                                    ),
+                                    text_align="center",
+                                    border=me.Border.all(
+                                        me.BorderSide(
+                                            width="1px",
+                                            color="#e2e8f0",
+                                            style="solid",
+                                        )
+                                    ),
+                                )
+                            ):
+                                me.text(
+                                    turns,
                                     style=me.Style(
-                                        display="table-cell",
-                                        padding=me.Padding.symmetric(
-                                            vertical="10px", horizontal="16px"
-                                        ),
-                                        text_align="center",
-                                        border=me.Border.all(
-                                            me.BorderSide(
-                                                width="1px",
-                                                color="#e2e8f0",
-                                                style="solid",
-                                            )
-                                        ),
-                                    )
-                                ):
-                                    me.text(
-                                        turns,
-                                        style=me.Style(
-                                            color="#334155"
-                                        ),
-                                    )
-
-                                with me.box(
+                                        color="#334155"
+                                    ),
+                                )
+    
+                            with me.box(
+                                style=me.Style(
+                                    display="table-cell",
+                                    padding=me.Padding.symmetric(
+                                        vertical="10px", horizontal="16px"
+                                    ),
+                                    text_align="center",
+                                    border=me.Border.all(
+                                        me.BorderSide(
+                                            width="1px",
+                                            color="#e2e8f0",
+                                            style="solid",
+                                        )
+                                    ),
+                                )
+                            ):
+                                me.text(
+                                    exec_val,
                                     style=me.Style(
-                                        display="table-cell",
-                                        padding=me.Padding.symmetric(
-                                            vertical="10px", horizontal="16px"
-                                        ),
-                                        text_align="center",
-                                        border=me.Border.all(
-                                            me.BorderSide(
-                                                width="1px",
-                                                color="#e2e8f0",
-                                                style="solid",
-                                            )
-                                        ),
-                                    )
-                                ):
-                                    me.text(
-                                        exec_val,
-                                        style=me.Style(
-                                            color=get_color_for_pct(exec_val)
-                                        ),
-                                    )
-
-                                with me.box(
+                                        color=get_color_for_pct(exec_val)
+                                    ),
+                                )
+    
+                            with me.box(
+                                style=me.Style(
+                                    display="table-cell",
+                                    padding=me.Padding.symmetric(
+                                        vertical="10px", horizontal="16px"
+                                    ),
+                                    text_align="center",
+                                    border=me.Border.all(
+                                        me.BorderSide(
+                                            width="1px",
+                                            color="#e2e8f0",
+                                            style="solid",
+                                        )
+                                    ),
+                                )
+                            ):
+                                me.text(
+                                    tokens,
                                     style=me.Style(
-                                        display="table-cell",
-                                        padding=me.Padding.symmetric(
-                                            vertical="10px", horizontal="16px"
-                                        ),
-                                        text_align="center",
-                                        border=me.Border.all(
-                                            me.BorderSide(
-                                                width="1px",
-                                                color="#e2e8f0",
-                                                style="solid",
-                                            )
-                                        ),
-                                    )
-                                ):
-                                    me.text(
-                                        tokens,
-                                        style=me.Style(
-                                            color="#334155"
-                                        ),
-                                    )
-
-                                with me.box(
+                                        color="#334155"
+                                    ),
+                                )
+    
+                            with me.box(
+                                style=me.Style(
+                                    display="table-cell",
+                                    padding=me.Padding.symmetric(
+                                        vertical="10px", horizontal="16px"
+                                    ),
+                                    text_align="center",
+                                    border=me.Border.all(
+                                        me.BorderSide(
+                                            width="1px",
+                                            color="#e2e8f0",
+                                            style="solid",
+                                        )
+                                    ),
+                                )
+                            ):
+                                me.text(
+                                    latency,
                                     style=me.Style(
-                                        display="table-cell",
-                                        padding=me.Padding.symmetric(
-                                            vertical="10px", horizontal="16px"
-                                        ),
-                                        text_align="center",
-                                        border=me.Border.all(
-                                            me.BorderSide(
-                                                width="1px",
-                                                color="#e2e8f0",
-                                                style="solid",
-                                            )
-                                        ),
-                                    )
-                                ):
-                                    me.text(
-                                        latency,
-                                        style=me.Style(
-                                            color="#334155"
-                                        ),
-                                    )
+                                        color="#334155"
+                                    ),
+                                )
+    
+    
 
 
+@me.page(
+    path="/",
+    title="EvalBench Viewer",
+    on_load=on_load,
+    security_policy=me.SecurityPolicy(
+        dangerously_disable_trusted_types=True,
+        cross_origin_opener_policy="same-origin",
+    ),
+    stylesheets=["/static/style.css"],
+)
+def app():
+    with me.box(
+        style=me.Style(
+            background="#f8fafc",
+            min_height="100vh",
+            width="100%",
+        )
+    ):
+        render_app_content()
+
+
+def render_app_content():
+    try:
+        state = me.state(State)
+        results_dir = get_results_dir()
+        import logging
+        logging.info(f"render_app_content: selected_directory='{state.selected_directory}'")
+    
+        directories = []
+        if os.path.exists(results_dir):
+            # List directories only
+            directories = [
+                d
+                for d in os.listdir(results_dir)
+                if os.path.isdir(os.path.join(results_dir, d))
+            ]
+    
+        def on_title_click(e: me.ClickEvent):
+            state.selected_directory = ""
+            state.conversation_index = 0
+            me.navigate("/")
+    
+        # Full-width header bar
+        with me.box(
+            style=me.Style(
+                background="#1e293b",
+                padding=me.Padding.symmetric(vertical="16px", horizontal="5%"),
+                margin=me.Margin(bottom="24px"),
+                display="flex",
+                justify_content="space-between",
+                align_items="center",
+            )
+        ):
+            me.button(
+                "EvalBench Viewer",
+                on_click=on_title_click,
+                style=me.Style(
+                    color="#f8fafc",
+                    font_size="22px",
+                    font_weight="700",
+                    letter_spacing="0.5px",
+                    background="transparent",
+                    padding=me.Padding.all("0px"),
+                    margin=me.Margin.all("0px"),
+                    border=me.Border.all(me.BorderSide(width="0px")),
+                    text_align="left",
+                ),
+            )
+    
+            if GIT_VERSION != "unknown":
+                with me.box(
+                    style=me.Style(
+                        font_size="12px",
+                        color="#94a3b8",
+                    )
+                ):
+                    me.markdown(
+                        f"[Git: {GIT_VERSION}](https://github.com/GoogleCloudPlatform/evalbench/commit/{GIT_VERSION})"
+                    )
+    
+        # Centered content at 90% browser width
+        with me.box(
+            style=me.Style(
+                width="90%",
+                margin=me.Margin.symmetric(horizontal="auto"),
+                display="flex",
+                flex_direction="column",
+                gap="16px",
+                background="#ffffff",
+                padding=me.Padding.all("24px"),
+                border_radius="8px",
+                box_shadow="0 4px 6px -1px rgba(0, 0, 0, 0.1)",
+                color="#1e293b",
+            )
+        ):
+            # Cache freshness indicator
+            import time
+            cache_file = os.path.join(results_dir, "trends_cache.csv")
+            cache_status = "Not Ready"
+            cache_color = "#ef4444" # Red
+            
+            if os.path.exists(cache_file):
+                mtime = os.path.getmtime(cache_file)
+                elapsed = time.time() - mtime
+                if elapsed < 600: # 10 minutes
+                    cache_status = "Fresh"
+                    cache_color = "#10b981" # Green
+                else:
+                    cache_status = "Stale"
+                    cache_color = "#f59e0b" # Yellow
+                    
+            with me.box(style=me.Style(display="flex", align_items="center", gap="8px", font_size="12px", margin=me.Margin(bottom="8px"))):
+                me.box(style=me.Style(width="12px", height="12px", border_radius="50%", background=cache_color))
+                me.text(f"Cache Status: {cache_status}", style=me.Style(font_weight="600", color="#64748b"))
+    
+            if state.selected_directory:
+    
+                def on_tab_change(e: me.ButtonToggleChangeEvent):
+                    state.selected_tab = e.value
+    
+                me.button_toggle(
+                    value=state.selected_tab,
+                    buttons=[
+                        me.ButtonToggleButton(
+                            label="Dashboard", value="Dashboard"
+                        ),
+                        me.ButtonToggleButton(
+                            label="Configs", value="Configs"
+                        ),
+                        # me.ButtonToggleButton(label="Evals", value="Evals"),
+                        # me.ButtonToggleButton(label="Scores", value="Scores"),
+                        me.ButtonToggleButton(
+                            label="Conversations", value="Conversations"
+                        ),
+                        # me.ButtonToggleButton(label="Summary", value="Summary"),
+                    ],
+                    on_change=on_tab_change,
+                )
+    
+                if state.selected_tab == "Dashboard":
+                    dashboard.dashboard_component(
+                        os.path.join(results_dir, state.selected_directory)
+                    )
+                elif state.selected_tab == "Conversations":
+    
+                    def on_prev_conversation(e: me.ClickEvent):
+                        s = me.state(State)
+                        if s.conversation_index > 0:
+                            s.conversation_index -= 1
+    
+                    def on_next_conversation(e: me.ClickEvent):
+                        s = me.state(State)
+                        s.conversation_index += 1
+    
+                    conversations.conversations_component(
+                        os.path.join(results_dir, state.selected_directory),
+                        conversation_index=state.conversation_index,
+                        on_prev=on_prev_conversation,
+                        on_next=on_next_conversation,
+                    )
+                elif state.selected_tab == "Configs":
+                    config_path = os.path.join(
+                        results_dir, state.selected_directory, "configs.csv"
+                    )
+                    if os.path.exists(config_path):
+                        try:
+                            df = pd.read_csv(config_path)
+                            config = df_to_config(df)
+                            me.code(yaml.dump(config))
+                        except Exception as e:
+                            me.text(f"Error reading configs.csv: {e}")
+                    else:
+                        me.text(
+                            f"configs.csv not found in {state.selected_directory}"
+                        )
+                elif state.selected_tab == "Evals":
+                    evals_path = os.path.join(
+                        results_dir, state.selected_directory, "evals.csv"
+                    )
+                    if os.path.exists(evals_path):
+                        try:
+                            df = pd.read_csv(evals_path)
+                            details = get_eval_details(
+                                results_dir, state.selected_directory
+                            )
+                            df.insert(0, "orchestrator", details["orchestrator"])
+                            me.table(data_frame=df)
+                        except Exception as e:
+                            me.text(f"Error reading evals.csv: {e}")
+                    else:
+                        me.text(
+                            f"evals.csv not found in {state.selected_directory}"
+                        )
+                elif state.selected_tab == "Scores":
+                    scores_path = os.path.join(
+                        results_dir, state.selected_directory, "scores.csv"
+                    )
+                    if os.path.exists(scores_path):
+                        try:
+                            df = pd.read_csv(scores_path)
+                            me.table(data_frame=df)
+                        except Exception as e:
+                            me.text(f"Error reading scores.csv: {e}")
+                    else:
+                        me.text(
+                            f"scores.csv not found in {state.selected_directory}"
+                        )
+                elif state.selected_tab == "Summary":
+                    summary_path = os.path.join(
+                        results_dir, state.selected_directory, "summary.csv"
+                    )
+                    if os.path.exists(summary_path):
+                        try:
+                            df = pd.read_csv(summary_path)
+                            me.table(data_frame=df)
+                        except Exception as e:
+                            me.text(f"Error reading summary.csv: {e}")
+                    else:
+                        me.text(
+                            f"summary.csv not found in {state.selected_directory}"
+                        )
+            else:
+                            from trends import trends_component
+                            state = me.state(State)
+                
+                            def on_main_tab_change(e: me.ButtonToggleChangeEvent):
+                                me.state(State).selected_main_tab = e.value
+                
+                            with me.box(style=me.Style(margin=me.Margin(bottom="16px"))):
+                                me.button_toggle(
+                                    value=state.selected_main_tab,
+                                    buttons=[
+                                        me.ButtonToggleButton(label="List", value="List"),
+                                        me.ButtonToggleButton(label="Charts", value="Charts"),
+                                    ],
+                                    on_change=on_main_tab_change,
+                                )
+                
+                            if state.selected_main_tab == "List":
+                                try:
+                                    list_view_component()
+                                except Exception as e:
+                                    import logging
+                                    logging.exception("Failed to call list_view_component")
+                                    me.text(f"Error: {e}")
+                            elif state.selected_main_tab == "Charts":
+                                trends_component()
+                
+    except Exception as e:
+        import logging
+        logging.exception("render_app_content failed")
+        me.text(f"Fatal Error: {e}")
 if __name__ == "__main__":
     me.run(app)

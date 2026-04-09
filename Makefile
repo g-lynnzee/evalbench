@@ -101,6 +101,7 @@ deploy-corprun:
 		--port=3000 \
 		--memory=2Gi \
 		--min-instances=1 \
+		--no-cpu-throttling \
 		--service-account=crsvc-evalbench@evalbench-dev.iam.gserviceaccount.com \
 		--set-env-vars CLOUD_RUN=True,GOOGLE_CLOUD_PROJECT=evalbench-dev,MESOP_XSRF_CHECK=false \
 		--ingress=internal-and-cloud-load-balancing \
