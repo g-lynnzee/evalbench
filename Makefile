@@ -27,6 +27,7 @@ SHELL := /bin/bash
 TYPE != awk -F '=' '/GOOGLE_ROLE/ { print $$2 }' /etc/lsb-release
 
 build:
+	git rev-parse --short HEAD > viewer/version.txt || echo "unknown" > viewer/version.txt
 	$(CONTAINER_ENGINE) build  -t evalbench -f evalbench_service/Dockerfile .
 
 build-test:

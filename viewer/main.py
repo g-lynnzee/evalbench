@@ -4,6 +4,23 @@ import pandas as pd
 import yaml
 import logging
 import json
+import subprocess
+
+try:
+    # Try to read version from file (created during build)
+    version_file = os.path.join(os.path.dirname(__file__), "version.txt")
+    if os.path.exists(version_file):
+        with open(version_file, "r") as f:
+            GIT_VERSION = f.read().strip()
+    else:
+        # Fallback to git command (for local dev)
+        GIT_VERSION = subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"],
+            stderr=subprocess.DEVNULL
+        ).decode("utf-8").strip()
+except Exception:
+    GIT_VERSION = "unknown"
+
 
 logging.basicConfig(level=logging.INFO)
 
@@ -262,6 +279,17 @@ def render_app_content():
                 text_align="left",
             ),
         )
+
+        if GIT_VERSION != "unknown":
+            with me.box(
+                style=me.Style(
+                    font_size="12px",
+                    color="#94a3b8",
+                )
+            ):
+                me.markdown(
+                    f"[Git: {GIT_VERSION}](https://github.com/GoogleCloudPlatform/evalbench/commit/{GIT_VERSION})"
+                )
 
     # Centered content at 90% browser width
     with me.box(
