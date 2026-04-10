@@ -123,8 +123,8 @@ def precompute():
                 if run_time != "unknown":
                     try:
                         run_time = pd.to_datetime(run_time).strftime('%Y-%m-%d')
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logging.warning(f"Failed to parse run_time '{run_time}': {e}")
                 
                 data.append({
                     'run_time': run_time,
