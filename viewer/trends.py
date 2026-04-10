@@ -25,28 +25,74 @@ def get_results_dir():
 
     return results_dir_candidates[1]  # Fallback to default
 
-def generate_plotly_chart(df, x_col, y_col, hue_col, title, ylabel):
+def generate_d3_chart(df, x_col, y_col, hue_col, title, ylabel):
     df_sorted = df.sort_values(by=x_col)
     
-    fig = px.line(
-        df_sorted, 
-        x=x_col, 
-        y=y_col, 
-        color=hue_col, 
-        title=title, 
-        labels={y_col: ylabel, x_col: "Run Time"},
-        markers=True
-    )
+    # Convert dataframe to records for JSON
+    data_records = df_sorted.to_dict(orient='records')
+    import json
+    data_json = json.dumps(data_records)
     
-    fig.update_layout(
-        autosize=True,
-        width=None,
-        height=500,
-        margin=dict(l=40, r=40, t=60, b=40),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-    )
-    
-    return fig.to_html(full_html=True, include_plotlyjs='cdn')
+    html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <script src="https://d3js.org/d3.v7.min.js"></script>
+        <style>
+            body {{ 
+                font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif; 
+                margin: 0;
+                padding: 0;
+            }}
+            .axis-label {{ font-size: 12px; fill: #64748b; }}
+            .line {{ fill: none; stroke-width: 3px; stroke-linecap: round; }}
+            .area {{ opacity: 0.05; }}
+            .dot {{ stroke: #fff; stroke-width: 2px; transition: r 0.2s, fill 0.2s; }}
+            .dot:hover {{ r: 8px; cursor: pointer; }}
+            .grid line {{ stroke: #e2e8f0; stroke-opacity: 0.7; shape-rendering: crispEdges; }}
+            .grid path {{ stroke-width: 0; }}
+            .tooltip {{
+                position: absolute;
+                text-align: left;
+                padding: 12px;
+                font-size: 14px;
+                background: rgba(255, 255, 255, 0.95);
+                border: 1px solid #e2e8f0;
+                border-radius: 8px;
+                pointer-events: none;
+                opacity: 0;
+                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+                backdrop-filter: blur(4px);
+                transition: opacity 0.2s;
+            }}
+            .legend {{ font-size: 14px; fill: #334155; font-weight: 500; }}
+            .chart-title {{ font-size: 18px; font-weight: 700; fill: #0f172a; }}
+        </style>
+    </head>
+    <body>
+        <div id="chart-container" style="width: 100%; height: 500px; position: relative;">
+            <div id="chart"></div>
+            <div class="tooltip" id="tooltip"></div>
+        </div>
+        
+        <script>
+            window.chartData = {data_json};
+            window.chartConfig = {{
+                xCol: "{x_col}",
+                yCol: "{y_col}",
+                hueCol: "{hue_col}",
+                title: "{title}",
+                ylabel: "{ylabel}"
+            }};
+        </script>
+        <script src="/static/chart.js"></script>
+    </body>
+    </html>
+    """
+    return html
+
+
+
 
 def trends_component():
     results_dir = get_results_dir()
@@ -147,9 +193,10 @@ def trends_component():
         return
         
     # Generate charts
-    latency_chart = generate_plotly_chart(df, 'run_time', 'latency', 'product', 'Latency Trend', 'Latency (ms)')
-    token_chart = generate_plotly_chart(df, 'run_time', 'tokens', 'product', 'Token Consumption Trend', 'Tokens')
-    trajectory_chart = generate_plotly_chart(df, 'run_time', 'trajectory', 'product', 'Trajectory Score Trend', 'Score (%)')
+    latency_chart = generate_d3_chart(df, 'run_time', 'latency', 'product', 'Latency Trend', 'Latency (ms)')
+    token_chart = generate_d3_chart(df, 'run_time', 'tokens', 'product', 'Token Consumption Trend', 'Tokens')
+    trajectory_chart = generate_d3_chart(df, 'run_time', 'trajectory', 'product', 'Trajectory Score Trend', 'Score (%)')
+
     
     # Render charts
     with me.box(style=me.Style(display="flex", flex_direction="column", gap="24px", padding=me.Padding.all("24px"), width="100%")):
