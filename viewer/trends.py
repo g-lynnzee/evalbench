@@ -1,9 +1,7 @@
-import io
 import os
 import logging
 import mesop as me
 import pandas as pd
-import plotly.express as px
 from state import State
 
 def get_results_dir():
@@ -152,7 +150,7 @@ def trends_component():
                     if run_time != "unknown":
                         try:
                             run_time = pd.to_datetime(run_time).strftime('%Y-%m-%d')
-                        except:
+                        except Exception:
                             pass
                     
                     data.append({

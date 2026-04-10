@@ -1,4 +1,3 @@
-import io
 import os
 import logging
 import json
@@ -124,7 +123,7 @@ def precompute():
                 if run_time != "unknown":
                     try:
                         run_time = pd.to_datetime(run_time).strftime('%Y-%m-%d')
-                    except:
+                    except Exception:
                         pass
                 
                 data.append({
