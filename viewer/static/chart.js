@@ -77,7 +77,6 @@ function drawChart() {
                 .x(d => x(d[xCol]))
                 .y0(height)
                 .y1(d => y(d[yCol]))
-                .curve(d3.curveCardinal)
             )
             .style("fill", color(product));
 
@@ -88,7 +87,6 @@ function drawChart() {
             .attr("d", d3.line()
                 .x(d => x(d[xCol]))
                 .y(d => y(d[yCol]))
-                .curve(d3.curveCardinal)
             )
             .style("stroke", color(product));
     });

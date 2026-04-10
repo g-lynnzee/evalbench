@@ -95,12 +95,15 @@ def precompute():
                 # Read configs
                 configs_df = pd.read_csv(configs_file)
                 
-                # Extract requester and product
+                # Extract requester, product and dataset
                 requester_row = configs_df[configs_df['config'].str.contains('guitar_requester', na=False)]
                 product_row = configs_df[configs_df['config'].isin(['experiment_config.product_name', 'experiment_config.poduct_name'])]
+                dataset_row = configs_df[configs_df['config'] == 'experiment_config.dataset_config']
                 
                 requester = requester_row['value'].values[0] if not requester_row.empty else "unknown"
                 product = product_row['value'].values[0] if not product_row.empty else "unknown"
+                dataset_path = dataset_row['value'].values[0] if not dataset_row.empty else "unknown"
+                dataset = os.path.basename(dataset_path) if dataset_path != "unknown" else "unknown"
                 
                 if product != "unknown" and str(product).strip() != "":
                     products.add(product)
@@ -146,6 +149,7 @@ def precompute():
                     'run_time': run_time,
                     'requester': requester,
                     'product': product,
+                    'dataset': dataset,
                     'latency': latency,
                     'tokens': tokens,
                     'trajectory': trajectory,

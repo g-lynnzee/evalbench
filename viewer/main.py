@@ -357,7 +357,7 @@ def status_component():
                                 background="#ffffff" if idx % 2 == 0 else "#f9fafb",
                             )
                         ):
-                            def render_cell(text, color="#334155", cell_bg=None):
+                            def render_cell(text, color="#334155", cell_bg=None, on_click=None):
                                 style = me.Style(
                                     display="table-cell",
                                     padding=me.Padding.symmetric(vertical="12px", horizontal="16px"),
@@ -369,9 +369,35 @@ def status_component():
                                 if cell_bg:
                                     style.background = cell_bg
                                 with me.box(style=style):
-                                    me.text(text, style=me.Style(color=color))
+                                    if on_click:
+                                        me.button(
+                                            text,
+                                            on_click=on_click,
+                                            style=me.Style(
+                                                color=color,
+                                                background="transparent",
+                                                border=me.Border.all(me.BorderSide(width="0px")),
+                                                padding=me.Padding.all("0px"),
+                                                margin=me.Margin.all("0px"),
+                                                font_size="inherit",
+                                                font_weight="500",
+                                                cursor="pointer",
+                                            )
+                                        )
+                                    else:
+                                        me.text(text, style=me.Style(color=color))
                                     
-                            render_cell(str(row['Product']))
+                            product_val = str(row['Product'])
+                            
+                            def make_click_handler(p_val):
+                                def handler(e: me.ClickEvent):
+                                    st = me.state(State)
+                                    st.selected_main_tab = "List"
+                                    st.product_filter = p_val
+                                handler.__name__ = f"click_product_status_{p_val}"
+                                return handler
+                                
+                            render_cell(product_val, color="#2563eb", on_click=make_click_handler(product_val))
                             
                             if is_na:
                                 # Make cells gray for products with no data
@@ -456,6 +482,7 @@ def list_view_component(directories, results_dir):
                                 "date": str(row['run_time']) if not pd.isna(row['run_time']) else "N/A",
                                 "product": str(row['product']) if not pd.isna(row['product']) else "N/A",
                                 "requester": str(row['requester']) if not pd.isna(row['requester']) else "N/A",
+                                "dataset": str(row['dataset']) if 'dataset' in row and not pd.isna(row['dataset']) else "N/A",
                                 "exact_match": f"{row['exact_match']:.0f}%" if not pd.isna(row['exact_match']) else "N/A",
                                 "llmrater": f"{row['llmrater']:.0f}%" if not pd.isna(row['llmrater']) else "N/A",
                                 "trajectory_matcher": f"{row['trajectory']:.0f}%" if not pd.isna(row['trajectory']) else "N/A",
@@ -928,6 +955,9 @@ def list_view_component(directories, results_dir):
             def click_exec(e):
                 on_sort_click("executable")
     
+            def click_dataset(e):
+                on_sort_click("dataset")
+
             def click_tokens(e):
                 on_sort_click("token_consumption")
     
@@ -939,6 +969,7 @@ def list_view_component(directories, results_dir):
                 "date": click_date,
                 "product": click_product,
                 "requester": click_requester,
+                "dataset": click_dataset,
                 "trajectory_matcher": click_traj,
                 "turn_count": click_turns,
                 "executable": click_exec,
@@ -1031,6 +1062,7 @@ def list_view_component(directories, results_dir):
                         ("Date", "date", "24ch"),
                         ("Product", "product", None),
                         ("Requester", "requester", None),
+                        ("Dataset", "dataset", None),
                         (
                             "Trajectory Matcher",
                             "trajectory_matcher",
@@ -1058,6 +1090,7 @@ def list_view_component(directories, results_dir):
                     date_val = item.get("date", "N/A")
                     prod = item["product"]
                     req_val = item.get("requester", "N/A")
+                    dataset_val = item.get("dataset", "N/A")
                     traj = item.get("trajectory_matcher", "N/A")
                     turns = item.get("turn_count", "N/A")
                     exec_val = item.get("executable", "N/A")
@@ -1171,6 +1204,29 @@ def list_view_component(directories, results_dir):
                         ):
                             me.text(
                                 req_val,
+                                style=me.Style(
+                                    color="#334155"
+                                ),
+                            )
+                        
+                        with me.box(
+                            style=me.Style(
+                                display="table-cell",
+                                padding=me.Padding.symmetric(
+                                    vertical="10px", horizontal="16px"
+                                ),
+                                text_align="center",
+                                border=me.Border.all(
+                                    me.BorderSide(
+                                        width="1px",
+                                        color="#e2e8f0",
+                                        style="solid",
+                                    )
+                                ),
+                            )
+                        ):
+                            me.text(
+                                dataset_val,
                                 style=me.Style(
                                     color="#334155"
                                 ),
