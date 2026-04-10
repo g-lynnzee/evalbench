@@ -155,7 +155,7 @@ test:
 	@nox
 
 style:
-	@pycodestyle --exclude=evalbench/lib,evalbench/lib64,evalproto evalbench
+	@pycodestyle --config=.pycodestyle --exclude=evalbench/lib,evalbench/lib64,evalproto evalbench
 
 run:
 	@./run_service.sh

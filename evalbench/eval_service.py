@@ -32,9 +32,10 @@ from util.service import (
 )
 
 import threading
+from util.context import rpc_id_var
+from util import get_SessionManager
 
 SESSIONMANAGER = get_SessionManager()
-rpc_id_var = contextvars.ContextVar("rpc_id", default="default")
 
 
 class SessionManagerInterceptor(grpc.aio.ServerInterceptor):
@@ -52,14 +53,9 @@ class SessionManagerInterceptor(grpc.aio.ServerInterceptor):
         _metadata = dict(handler_call_details.invocation_metadata)
         if rpc_id_var.get() == "default":
             _metadata = dict(handler_call_details.invocation_metadata)
-            rpc_id_var.set(self.decorate(_metadata["client-rpc-id"]))
+            rpc_id_var.set(_metadata["client-rpc-id"])
             SESSIONMANAGER.create_session(rpc_id_var.get())
-        else:
-            rpc_id_var.set(self.decorate(rpc_id_var.get()))
         return await continuation(handler_call_details)
-
-    def decorate(self, rpc_id: str):
-        return f"{self.tag}-{rpc_id}"
 
 
 class EvalServicer(eval_service_pb2_grpc.EvalServiceServicer):
@@ -138,12 +134,18 @@ class EvalServicer(eval_service_pb2_grpc.EvalServiceServicer):
             evaluator = get_streaming_orchestrator(
                 config, db_configs, setup_config, report_progress=True
             )
-            logging.info("Streaming eval mode: evaluating items as they arrive...")
+            logging.info(
+                "Streaming eval mode: evaluating items as they arrive..."
+            )
             tasks = []
             async for request in request_iterator:
-                eval_input = evalinput.EvalInputRequest.init_from_proto(request)
+                eval_input = evalinput.EvalInputRequest.init_from_proto(
+                    request
+                )
+                ctx = contextvars.copy_context()
+
                 task = loop.run_in_executor(
-                    None, evaluator.evaluate_item, eval_input
+                    None, ctx.run, evaluator.evaluate_item, eval_input
                 )
                 tasks.append(task)
             await asyncio.gather(*tasks)
@@ -153,15 +155,22 @@ class EvalServicer(eval_service_pb2_grpc.EvalServiceServicer):
                 config, db_configs, setup_config, report_progress=True
             )
             logging.info("Batch eval mode: evaluating all items together...")
-            await loop.run_in_executor(None, evaluator.evaluate, dataset)
+            ctx = contextvars.copy_context()
+            await loop.run_in_executor(
+                None, ctx.run, evaluator.evaluate, dataset
+            )
 
         job_id, run_time, results_tf, scores_tf = evaluator.process()
-        reporters = get_reporters(config.get("reporting", {}), job_id, run_time)
+        reporters = get_reporters(
+            config.get("reporting", {}), job_id, run_time
+        )
 
         # Offload blocking results processing to a thread pool
         logging.info("Offloading results processing to thread pool...")
+        ctx = contextvars.copy_context()
         summary = await loop.run_in_executor(
             None,
+            ctx.run,
             _process_results,
             reporters,
             job_id,

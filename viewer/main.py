@@ -23,7 +23,10 @@ except Exception:
     GIT_VERSION = "unknown"
 
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s %(levelname)s %(filename)s:%(lineno)d: %(message)s'
+)
 
 # Manually enable debug mode to bypass XSRF check if needed
 # (e.g. when running in container behind a proxy)
