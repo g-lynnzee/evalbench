@@ -27,6 +27,7 @@ SHELL := /bin/bash
 TYPE != awk -F '=' '/GOOGLE_ROLE/ { print $$2 }' /etc/lsb-release
 
 build:
+	git rev-parse --short HEAD > viewer/version.txt || echo "unknown" > viewer/version.txt
 	$(CONTAINER_ENGINE) build  -t evalbench -f evalbench_service/Dockerfile .
 
 build-test:
@@ -100,6 +101,7 @@ deploy-corprun:
 		--port=3000 \
 		--memory=2Gi \
 		--min-instances=1 \
+		--no-cpu-throttling \
 		--service-account=crsvc-evalbench@evalbench-dev.iam.gserviceaccount.com \
 		--set-env-vars CLOUD_RUN=True,GOOGLE_CLOUD_PROJECT=evalbench-dev,MESOP_XSRF_CHECK=false \
 		--ingress=internal-and-cloud-load-balancing \
@@ -153,7 +155,7 @@ test:
 	@nox
 
 style:
-	@pycodestyle --exclude=evalbench/lib,evalbench/lib64,evalproto evalbench
+	@pycodestyle --config=.pycodestyle --exclude=evalbench/lib,evalbench/lib64,evalproto evalbench
 
 run:
 	@./run_service.sh
