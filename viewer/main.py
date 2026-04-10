@@ -881,13 +881,7 @@ def list_view_component(directories, results_dir):
                         else "#f8fafc"
                     )
     
-                    def make_on_click(dir_name):
-                        def on_click(e: me.ClickEvent):
-                            import logging
-                            logging.info(f"CLICKED EVAL ID: {dir_name}")
-                            s = me.state(State)
-                            s.selected_directory = dir_name
-                        return on_click
+
     
                     with me.box(
                         style=me.Style(
