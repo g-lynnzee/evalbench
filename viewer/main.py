@@ -5,7 +5,21 @@ import yaml
 import logging
 import json
 import subprocess
-from state import State
+
+@me.stateclass
+class State:
+    selected_directory: str = ""
+    selected_tab: str = "Dashboard"
+    conversation_index: int = 0
+    eval_summaries: str = ""
+    eval_id_filter: str = ""
+    product_filter: str = ""
+    requester_filter: str = ""
+    sort_column: str = "date"
+    sort_descending: bool = True
+    open_dropdown: str = ""
+    selected_main_tab: str = "Status"
+    trends_product_filter: str = ""
 
 try:
     # Try to read version from file (created during build)
@@ -208,6 +222,181 @@ def on_load(e: me.LoadEvent):
 
 
 
+def status_component():
+    results_dir = get_results_dir()
+    directories = []
+    if os.path.exists(results_dir):
+        directories = [
+            d
+            for d in os.listdir(results_dir)
+            if os.path.isdir(os.path.join(results_dir, d))
+        ]
+    
+    with me.box(
+        style=me.Style(
+            background="#ffffff",
+            padding=me.Padding.all("24px"),
+            border_radius="12px",
+            border=me.Border.all(
+                me.BorderSide(width="1px", style="solid", color="#e0e0e0")
+            ),
+            box_shadow="0 2px 4px rgba(0,0,0,0.05)",
+        )
+    ):
+        me.text("Product status", type="headline-5")
+        me.box(style=me.Style(height="16px"))
+        me.text(f"Total Evaluation Jobs: {len(directories)}")
+        
+        me.box(style=me.Style(height="24px"))
+        me.text("Product Performance (Latest Eval per Product)", type="headline-6")
+        me.box(style=me.Style(height="8px"))
+        
+        # Build summary data from precomputed trends cache
+        data = []
+        cache_file = os.path.join(results_dir, "trends_cache.csv")
+        if os.path.exists(cache_file):
+            try:
+                cache_df = pd.read_csv(cache_file)
+                for _, row in cache_df.iterrows():
+                    data.append({
+                        'Product': row['product'],
+                        'Trajectory Matcher': row['trajectory'],
+                        'Turn Count': row['turn_count'],
+                        'Executable': row['executable'],
+                        'Token Consumption': row['tokens'],
+                        'End-to-End Latency': row['latency'],
+                        'Run Time': row['run_time']
+                    })
+            except Exception as e:
+                logging.error(f"Error reading trends cache: {e}")
+        else:
+            logging.warning(f"Trends cache file not found at {cache_file}")
+                    
+        # Add requested default products if not present in data
+        default_products = ['spanner', 'bigtable', 'alloydb', 'memorystore', 'dms', 'datastream']
+        products_in_data = [d['Product'] for d in data]
+        for p in default_products:
+            if p not in products_in_data:
+                data.append({
+                    'Product': p,
+                    'Trajectory Matcher': None,
+                    'Turn Count': None,
+                    'Executable': None,
+                    'Token Consumption': None,
+                    'End-to-End Latency': None,
+                    'Run Time': None
+                })
+                    
+        if data:
+            df = pd.DataFrame(data)
+            # Filter out unknown products
+            df = df[df['Product'] != 'unknown']
+            
+            if not df.empty:
+                # Sort by Run Time descending to get the latest
+                df['Run Time'] = pd.to_datetime(df['Run Time'])
+                df = df.sort_values('Run Time', ascending=False, na_position='last')
+                
+                # Group by Product and take the first (latest)
+                summary_df = df.groupby("Product").first().reset_index()
+                
+                # Render table similar to lists tab
+                with me.box(
+                    style=me.Style(
+                        display="table",
+                        width="100%",
+                        border=me.Border.all(
+                            me.BorderSide(width="1px", color="#e5e7eb", style="solid")
+                        ),
+                        border_radius="8px",
+                        background="#ffffff",
+                        margin=me.Margin(top="16px"),
+                    )
+                ):
+                    # Header row
+                    with me.box(
+                        style=me.Style(
+                            display="table-row",
+                            background="#f8fafc",
+                            font_weight="bold",
+                            color="#475569",
+                            font_size="12px",
+                            text_transform="uppercase",
+                            letter_spacing="0.05em",
+                        )
+                    ):
+                        headers = [
+                            "Product",
+                            "Trajectory Matcher",
+                            "Turn Count",
+                            "Executable",
+                            "Token Consumption",
+                            "End-to-End Latency"
+                        ]
+                        for label in headers:
+                            with me.box(
+                                style=me.Style(
+                                    display="table-cell",
+                                    padding=me.Padding.symmetric(vertical="12px", horizontal="16px"),
+                                    text_align="center",
+                                    border=me.Border.all(
+                                        me.BorderSide(width="1px", color="#e2e8f0", style="solid")
+                                    ),
+                                    background="#f8fafc",
+                                )
+                            ):
+                                me.text(label)
+                                
+                    # Data rows
+                    for idx, row in summary_df.iterrows():
+                        is_na = pd.isna(row['Trajectory Matcher'])
+                        
+                        with me.box(
+                            style=me.Style(
+                                display="table-row",
+                                background="#ffffff" if idx % 2 == 0 else "#f9fafb",
+                            )
+                        ):
+                            def render_cell(text, color="#334155", cell_bg=None):
+                                style = me.Style(
+                                    display="table-cell",
+                                    padding=me.Padding.symmetric(vertical="12px", horizontal="16px"),
+                                    text_align="center",
+                                    border=me.Border.all(
+                                        me.BorderSide(width="1px", color="#e2e8f0", style="solid")
+                                    ),
+                                )
+                                if cell_bg:
+                                    style.background = cell_bg
+                                with me.box(style=style):
+                                    me.text(text, style=me.Style(color=color))
+                                    
+                            render_cell(str(row['Product']))
+                            
+                            if is_na:
+                                # Make cells gray for products with no data
+                                render_cell("N/A", color="#94a3b8", cell_bg="#e2e8f0")
+                                render_cell("N/A", color="#94a3b8", cell_bg="#e2e8f0")
+                                render_cell("N/A", color="#94a3b8", cell_bg="#e2e8f0")
+                                render_cell("N/A", color="#94a3b8", cell_bg="#e2e8f0")
+                                render_cell("N/A", color="#94a3b8", cell_bg="#e2e8f0")
+                            else:
+                                traj_str = f"{row['Trajectory Matcher']:.0f}%"
+                                render_cell(traj_str, get_color_for_pct(traj_str))
+                                
+                                render_cell(f"{row['Turn Count']:.1f}")
+                                
+                                exec_str = f"{row['Executable']:.0f}%"
+                                render_cell(exec_str, get_color_for_pct(exec_str))
+                                
+                                render_cell(f"{row['Token Consumption']:.0f}")
+                                render_cell(f"{row['End-to-End Latency']:.0f}")
+            else:
+                me.text("No evaluation data found for known products.")
+        else:
+            me.text("No evaluation data found in results directories.")
+
+
 def list_view_component(directories, results_dir):
     state = me.state(State)
     with me.box(
@@ -257,28 +446,29 @@ def list_view_component(directories, results_dir):
                     summaries = []
     
             if not summaries:
-                for d in sorted(directories):
-                    details = get_eval_details(results_dir, d)
-                    summaries.append({
-                        "id": d,
-                        "date": details.get("date", "N/A"),
-                        "product": details["product"],
-                        "requester": details.get("requester", "N/A"),
-                        "exact_match": details["exact_match"],
-                        "llmrater": details["llmrater"],
-                        "trajectory_matcher": details[
-                            "trajectory_matcher"
-                        ],
-                        "turn_count": details["turn_count"],
-                        "executable": details["executable"],
-                        "token_consumption": details[
-                            "token_consumption"
-                        ],
-                        "end_to_end_latency": details[
-                            "end_to_end_latency"
-                        ]
-                    })
-                s.eval_summaries = json.dumps(summaries)
+                cache_file = os.path.join(results_dir, "trends_cache.csv")
+                if os.path.exists(cache_file):
+                    try:
+                        cache_df = pd.read_csv(cache_file)
+                        for _, row in cache_df.iterrows():
+                            summaries.append({
+                                "id": str(row['job_id']),
+                                "date": str(row['run_time']) if not pd.isna(row['run_time']) else "N/A",
+                                "product": str(row['product']) if not pd.isna(row['product']) else "N/A",
+                                "requester": str(row['requester']) if not pd.isna(row['requester']) else "N/A",
+                                "exact_match": f"{row['exact_match']:.0f}%" if not pd.isna(row['exact_match']) else "N/A",
+                                "llmrater": f"{row['llmrater']:.0f}%" if not pd.isna(row['llmrater']) else "N/A",
+                                "trajectory_matcher": f"{row['trajectory']:.0f}%" if not pd.isna(row['trajectory']) else "N/A",
+                                "turn_count": f"{row['turn_count']:.1f}" if not pd.isna(row['turn_count']) else "N/A",
+                                "executable": f"{row['executable']:.0f}%" if not pd.isna(row['executable']) else "N/A",
+                                "token_consumption": f"{row['tokens']:.0f}" if not pd.isna(row['tokens']) else "N/A",
+                                "end_to_end_latency": f"{row['latency']:.0f}" if not pd.isna(row['latency']) else "N/A"
+                            })
+                        s.eval_summaries = json.dumps(summaries)
+                    except Exception as e:
+                        logging.error(f"Error reading trends cache: {e}")
+                else:
+                    logging.warning(f"Trends cache file not found at {cache_file}")
     
             # Sort by selected column
             reverse = state.sort_descending
@@ -1174,16 +1364,43 @@ def render_app_content():
                 ),
             )
     
-            if GIT_VERSION != "unknown":
-                with me.box(
-                    style=me.Style(
-                        font_size="12px",
-                        color="#94a3b8",
-                    )
-                ):
-                    me.markdown(
-                        f"[Git: {GIT_VERSION}](https://github.com/GoogleCloudPlatform/evalbench/commit/{GIT_VERSION})"
-                    )
+            import time
+            cache_file = os.path.join(results_dir, "trends_cache.csv")
+            cache_status = "Not Ready"
+            cache_color = "#ef4444" # Red
+            
+            if os.path.exists(cache_file):
+                mtime = os.path.getmtime(cache_file)
+                elapsed = time.time() - mtime
+                if elapsed < 600: # 10 minutes
+                    cache_status = "Fresh"
+                    cache_color = "#10b981" # Green
+                else:
+                    cache_status = "Stale"
+                    cache_color = "#f59e0b" # Yellow
+                    
+            with me.box(
+                style=me.Style(
+                    display="flex",
+                    flex_direction="column",
+                    align_items="flex-end",
+                    gap="4px",
+                )
+            ):
+                if GIT_VERSION != "unknown":
+                    with me.box(
+                        style=me.Style(
+                            font_size="12px",
+                            color="#94a3b8",
+                        )
+                    ):
+                        me.markdown(
+                            f"[Git: {GIT_VERSION}](https://github.com/GoogleCloudPlatform/evalbench/commit/{GIT_VERSION})"
+                        )
+                
+                with me.box(style=me.Style(display="flex", align_items="center", gap="6px", font_size="12px")):
+                    me.box(style=me.Style(width="8px", height="8px", border_radius="50%", background=cache_color))
+                    me.text(f"Cache: {cache_status}", style=me.Style(font_weight="500", color="#94a3b8"))
     
         # Centered content at 90% browser width
         with me.box(
@@ -1200,25 +1417,7 @@ def render_app_content():
                 color="#1e293b",
             )
         ):
-            # Cache freshness indicator
-            import time
-            cache_file = os.path.join(results_dir, "trends_cache.csv")
-            cache_status = "Not Ready"
-            cache_color = "#ef4444" # Red
-            
-            if os.path.exists(cache_file):
-                mtime = os.path.getmtime(cache_file)
-                elapsed = time.time() - mtime
-                if elapsed < 600: # 10 minutes
-                    cache_status = "Fresh"
-                    cache_color = "#10b981" # Green
-                else:
-                    cache_status = "Stale"
-                    cache_color = "#f59e0b" # Yellow
-                    
-            with me.box(style=me.Style(display="flex", align_items="center", gap="8px", font_size="12px", margin=me.Margin(bottom="8px"))):
-                me.box(style=me.Style(width="12px", height="12px", border_radius="50%", background=cache_color))
-                me.text(f"Cache Status: {cache_status}", style=me.Style(font_weight="600", color="#64748b"))
+
     
             if state.selected_directory:
     
@@ -1378,6 +1577,7 @@ def render_app_content():
                                 me.button_toggle(
                                     value=state.selected_main_tab,
                                     buttons=[
+                                        me.ButtonToggleButton(label="Status", value="Status"),
                                         me.ButtonToggleButton(label="List", value="List"),
                                         me.ButtonToggleButton(label="Charts", value="Charts"),
                                     ],
@@ -1392,6 +1592,8 @@ def render_app_content():
                                     me.text(f"Error: {e}")
                             elif state.selected_main_tab == "Charts":
                                 trends_component()
+                            elif state.selected_main_tab == "Status":
+                                status_component()
 
                 
     except Exception as e:

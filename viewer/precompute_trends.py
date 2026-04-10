@@ -114,10 +114,26 @@ def precompute():
                 latency_row = summary_df[summary_df['metric_name'] == 'end_to_end_latency']
                 token_row = summary_df[summary_df['metric_name'] == 'token_consumption']
                 trajectory_row = summary_df[summary_df['metric_name'] == 'trajectory_matcher']
+                executable_row = summary_df[summary_df['metric_name'] == 'executable']
+                turn_count_row = summary_df[summary_df['metric_name'] == 'turn_count']
+                exact_match_row = summary_df[summary_df['metric_name'] == 'exact_match']
+                llmrater_row = summary_df[summary_df['metric_name'] == 'llmrater']
                 
                 latency = float(latency_row['metric_score'].values[0]) if not latency_row.empty else 0.0
                 tokens = float(token_row['metric_score'].values[0]) if not token_row.empty else 0.0
-                trajectory = float(trajectory_row['metric_score'].values[0]) if not trajectory_row.empty else 0.0
+                turn_count = float(turn_count_row['metric_score'].values[0]) if not turn_count_row.empty else 0.0
+                
+                def get_metric_pct(row):
+                    if not row.empty:
+                        correct = float(row['correct_results_count'].values[0])
+                        total = float(row['total_results_count'].values[0])
+                        return (correct / total) * 100 if total > 0 else 0.0
+                    return 0.0
+                    
+                trajectory = get_metric_pct(trajectory_row)
+                executable = get_metric_pct(executable_row)
+                exact_match = get_metric_pct(exact_match_row)
+                llmrater = get_metric_pct(llmrater_row)
                 
                 run_time = summary_df['run_time'].values[0] if not summary_df.empty else "unknown"
                 if run_time != "unknown":
@@ -133,6 +149,10 @@ def precompute():
                     'latency': latency,
                     'tokens': tokens,
                     'trajectory': trajectory,
+                    'executable': executable,
+                    'turn_count': turn_count,
+                    'exact_match': exact_match,
+                    'llmrater': llmrater,
                     'job_id': d
                 })
                 successfully_processed.append(d)
