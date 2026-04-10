@@ -339,7 +339,6 @@ def list_view_component(directories, results_dir):
                     requesters = filters_data.get("requesters", [])
                     eval_ids = filters_data.get("eval_ids", [])
                 except Exception as e:
-                    import logging
                     logging.error(f"Error reading filters cache: {e}")
                     products = []
                     requesters = []
@@ -1132,7 +1131,6 @@ def render_app_content():
     try:
         state = me.state(State)
         results_dir = get_results_dir()
-        import logging
         logging.info(f"render_app_content: selected_directory='{state.selected_directory}'")
     
         directories = []
@@ -1274,7 +1272,6 @@ def render_app_content():
                         if eval_group: interesting_configs['Eval Group'] = eval_group
                         
                     except Exception as e:
-                        import logging
                         logging.warning(f"Error reading configs for summary: {e}")
 
                 if interesting_configs:
@@ -1391,7 +1388,6 @@ def render_app_content():
                                 try:
                                     list_view_component(directories, results_dir)
                                 except Exception as e:
-                                    import logging
                                     logging.exception("Failed to call list_view_component")
                                     me.text(f"Error: {e}")
                             elif state.selected_main_tab == "Charts":
@@ -1399,7 +1395,6 @@ def render_app_content():
 
                 
     except Exception as e:
-        import logging
         logging.exception("render_app_content failed")
         me.text(f"Fatal Error: {e}")
 if __name__ == "__main__":
