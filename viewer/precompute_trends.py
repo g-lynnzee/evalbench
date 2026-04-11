@@ -72,6 +72,7 @@ def precompute():
     data = []
     products = set()
     requesters = set()
+    datasets = set()
     eval_ids = all_directories
     
     # If we have existing data, populate products and requesters from it
@@ -98,12 +99,14 @@ def precompute():
                 # Extract requester, product and dataset
                 requester_row = configs_df[configs_df['config'].str.contains('guitar_requester', na=False)]
                 product_row = configs_df[configs_df['config'].isin(['experiment_config.product_name', 'experiment_config.poduct_name'])]
-                dataset_row = configs_df[configs_df['config'] == 'experiment_config.dataset_config']
                 
                 requester = requester_row['value'].values[0] if not requester_row.empty else "unknown"
                 product = product_row['value'].values[0] if not product_row.empty else "unknown"
-                dataset_path = dataset_row['value'].values[0] if not dataset_row.empty else "unknown"
+                dataset_path = configs_df[configs_df['config'] == 'experiment_config.dataset_config']['value'].values[0] if 'experiment_config.dataset_config' in configs_df['config'].values else "unknown"
                 dataset = os.path.basename(dataset_path) if dataset_path != "unknown" else "unknown"
+                
+                if dataset != "unknown":
+                    datasets.add(dataset)
                 
                 if product != "unknown" and str(product).strip() != "":
                     products.add(product)
@@ -121,6 +124,7 @@ def precompute():
                 turn_count_row = summary_df[summary_df['metric_name'] == 'turn_count']
                 exact_match_row = summary_df[summary_df['metric_name'] == 'exact_match']
                 llmrater_row = summary_df[summary_df['metric_name'] == 'llmrater']
+                goal_completion_row = summary_df[summary_df['metric_name'] == 'goal_completion']
                 
                 latency = float(latency_row['metric_score'].values[0]) if not latency_row.empty else 0.0
                 tokens = float(token_row['metric_score'].values[0]) if not token_row.empty else 0.0
@@ -137,6 +141,30 @@ def precompute():
                 executable = get_metric_pct(executable_row)
                 exact_match = get_metric_pct(exact_match_row)
                 llmrater = get_metric_pct(llmrater_row)
+                goal_completion = get_metric_pct(goal_completion_row)
+                if goal_completion == 0.0 and goal_completion_row.empty:
+                    # Fallback to results.csv or scores.csv if goal_completion is missing from summary.csv
+                    results_file = os.path.join(results_dir, d, "results.csv")
+                    scores_file = os.path.join(results_dir, d, "scores.csv")
+                    
+                    file_to_read = None
+                    if os.path.exists(results_file):
+                        file_to_read = results_file
+                    elif os.path.exists(scores_file):
+                        file_to_read = scores_file
+                        
+                    if file_to_read:
+                        try:
+                            df = pd.read_csv(file_to_read)
+                            if 'comparator' in df.columns and 'score' in df.columns:
+                                gc_scores = df[df['comparator'] == 'goal_completion']
+                                if not gc_scores.empty:
+                                    correct = len(gc_scores[gc_scores['score'] == 100.0])
+                                    total = len(gc_scores)
+                                    goal_completion = (correct / total) * 100 if total > 0 else 0.0
+                                    logging.info(f"Computed goal_completion from {os.path.basename(file_to_read)} for {d}: {goal_completion}")
+                        except Exception as e:
+                            logging.warning(f"Error reading {os.path.basename(file_to_read)} for {d}: {e}")
                 
                 run_time = summary_df['run_time'].values[0] if not summary_df.empty else "unknown"
                 if run_time != "unknown":
@@ -157,6 +185,7 @@ def precompute():
                     'turn_count': turn_count,
                     'exact_match': exact_match,
                     'llmrater': llmrater,
+                    'goal_completion': goal_completion,
                     'job_id': d
                 })
                 successfully_processed.append(d)
@@ -187,7 +216,8 @@ def precompute():
     filters_data = {
         "products": sorted(list(products)),
         "requesters": sorted(list(requesters)),
-        "eval_ids": sorted(list(eval_ids))
+        "eval_ids": sorted(list(eval_ids)),
+        "datasets": sorted(list(datasets))
     }
     with open(filters_file, "w") as f:
         json.dump(filters_data, f, indent=2)

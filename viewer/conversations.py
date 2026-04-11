@@ -190,6 +190,25 @@ def conversations_component(
                                 gap="8px",
                             )
                         ):
+                            # Conversation Plan
+                            scenario_str = df["scenario"].iloc[idx] if "scenario" in df.columns else ""
+                            conversation_plan = ""
+                            if scenario_str and pd.notna(scenario_str):
+                                try:
+                                    scenario_data = json.loads(scenario_str)
+                                    conversation_plan = scenario_data.get("conversation_plan", "")
+                                except Exception:
+                                    try:
+                                        import ast
+                                        scenario_data = ast.literal_eval(scenario_str)
+                                        conversation_plan = scenario_data.get("conversation_plan", "")
+                                    except Exception as e:
+                                        logging.warning(f"Failed to parse scenario: {e}")
+                                        
+                            if conversation_plan:
+                                with me.expansion_panel(title="Conversation Plan", expanded=True):
+                                    me.markdown(conversation_plan)
+
                             scores_path = os.path.join(results_dir, "scores.csv")
                             if os.path.exists(scores_path):
                                 try:

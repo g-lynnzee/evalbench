@@ -15,6 +15,7 @@ class State:
     eval_id_filter: str = ""
     product_filter: str = ""
     requester_filter: str = ""
+    dataset_filter: str = ""
     sort_column: str = "date"
     sort_descending: bool = True
     open_dropdown: str = ""
@@ -260,7 +261,9 @@ def status_component():
                 for _, row in cache_df.iterrows():
                     data.append({
                         'Product': row['product'],
+                        'Dataset': row['dataset'] if 'dataset' in row and not pd.isna(row['dataset']) else "N/A",
                         'Trajectory Matcher': row['trajectory'],
+                        'Goal Completion': row['goal_completion'] if 'goal_completion' in row else None,
                         'Turn Count': row['turn_count'],
                         'Executable': row['executable'],
                         'Token Consumption': row['tokens'],
@@ -279,6 +282,7 @@ def status_component():
             if p not in products_in_data:
                 data.append({
                     'Product': p,
+                    'Dataset': 'N/A',
                     'Trajectory Matcher': None,
                     'Turn Count': None,
                     'Executable': None,
@@ -297,8 +301,8 @@ def status_component():
                 df['Run Time'] = pd.to_datetime(df['Run Time'])
                 df = df.sort_values('Run Time', ascending=False, na_position='last')
                 
-                # Group by Product and take the first (latest)
-                summary_df = df.groupby("Product").first().reset_index()
+                # Group by Product and Dataset and take the first (latest)
+                summary_df = df.groupby(["Product", "Dataset"]).first().reset_index()
                 
                 # Render table similar to lists tab
                 with me.box(
@@ -327,7 +331,9 @@ def status_component():
                     ):
                         headers = [
                             "Product",
+                            "Dataset",
                             "Trajectory Matcher",
+                            "Goal Completion",
                             "Turn Count",
                             "Executable",
                             "Token Consumption",
@@ -388,16 +394,20 @@ def status_component():
                                         me.text(text, style=me.Style(color=color))
                                     
                             product_val = str(row['Product'])
+                            dataset_val = str(row['Dataset'])
                             
-                            def make_click_handler(p_val):
+                            def make_click_handler(p_val, d_val):
                                 def handler(e: me.ClickEvent):
                                     st = me.state(State)
                                     st.selected_main_tab = "List"
                                     st.product_filter = p_val
-                                handler.__name__ = f"click_product_status_{p_val}"
+                                    st.dataset_filter = d_val
+                                handler.__name__ = f"click_status_row_{p_val}_{d_val}"
                                 return handler
                                 
-                            render_cell(product_val, color="#2563eb", on_click=make_click_handler(product_val))
+                            click_handler = make_click_handler(product_val, dataset_val)
+                            render_cell(product_val, color="#2563eb", on_click=click_handler)
+                            render_cell(dataset_val, color="#2563eb", on_click=click_handler)
                             
                             if is_na:
                                 # Make cells gray for products with no data
@@ -406,9 +416,16 @@ def status_component():
                                 render_cell("N/A", color="#94a3b8", cell_bg="#e2e8f0")
                                 render_cell("N/A", color="#94a3b8", cell_bg="#e2e8f0")
                                 render_cell("N/A", color="#94a3b8", cell_bg="#e2e8f0")
+                                render_cell("N/A", color="#94a3b8", cell_bg="#e2e8f0")
                             else:
                                 traj_str = f"{row['Trajectory Matcher']:.0f}%"
                                 render_cell(traj_str, get_color_for_pct(traj_str))
+                                
+                                if pd.isna(row['Goal Completion']):
+                                    render_cell("N/A", color="#94a3b8", cell_bg="#e2e8f0")
+                                else:
+                                    goal_str = f"{row['Goal Completion']:.0f}%"
+                                    render_cell(goal_str, get_color_for_pct(goal_str))
                                 
                                 render_cell(f"{row['Turn Count']:.1f}")
                                 
@@ -486,6 +503,7 @@ def list_view_component(directories, results_dir):
                                 "exact_match": f"{row['exact_match']:.0f}%" if not pd.isna(row['exact_match']) else "N/A",
                                 "llmrater": f"{row['llmrater']:.0f}%" if not pd.isna(row['llmrater']) else "N/A",
                                 "trajectory_matcher": f"{row['trajectory']:.0f}%" if not pd.isna(row['trajectory']) else "N/A",
+                                "goal_completion": f"{row['goal_completion']:.0f}%" if 'goal_completion' in row and not pd.isna(row['goal_completion']) else "N/A",
                                 "turn_count": f"{row['turn_count']:.1f}" if not pd.isna(row['turn_count']) else "N/A",
                                 "executable": f"{row['executable']:.0f}%" if not pd.isna(row['executable']) else "N/A",
                                 "token_consumption": f"{row['tokens']:.0f}" if not pd.isna(row['tokens']) else "N/A",
@@ -555,11 +573,13 @@ def list_view_component(directories, results_dir):
                     products = filters_data.get("products", [])
                     requesters = filters_data.get("requesters", [])
                     eval_ids = filters_data.get("eval_ids", [])
+                    datasets = filters_data.get("datasets", [])
                 except Exception as e:
                     logging.error(f"Error reading filters cache: {e}")
                     products = []
                     requesters = []
                     eval_ids = []
+                    datasets = []
             else:
                 products = sorted(
                     list(
@@ -580,6 +600,27 @@ def list_view_component(directories, results_dir):
                     )
                 )
                 eval_ids = sorted([x["id"] for x in all_summaries])
+                datasets = sorted(
+                    list(
+                        set(
+                            x.get("dataset", "N/A")
+                            for x in all_summaries
+                            if x.get("dataset", "N/A") != "N/A"
+                        )
+                    )
+                )
+            
+            # Fallback for datasets if empty from cache
+            if not datasets and all_summaries:
+                datasets = sorted(
+                    list(
+                        set(
+                            x.get("dataset", "N/A")
+                            for x in all_summaries
+                            if x.get("dataset", "N/A") != "N/A"
+                        )
+                    )
+                )
     
             # Apply filters
             if state.eval_id_filter:
@@ -600,6 +641,13 @@ def list_view_component(directories, results_dir):
                     for x in summaries
                     if x.get("requester", "N/A")
                     == state.requester_filter
+                ]
+            if state.dataset_filter:
+                summaries = [
+                    x
+                    for x in summaries
+                    if x.get("dataset", "N/A")
+                    == state.dataset_filter
                 ]
     
             # Render filters UI
@@ -926,6 +974,107 @@ def list_view_component(directories, results_dir):
                                         ),
                                     )
     
+                # Dataset Filter with Floating Autocomplete
+                def toggle_dataset_dropdown(e: me.ClickEvent):
+                    st = me.state(State)
+                    if st.open_dropdown == "dataset":
+                        st.open_dropdown = ""
+                    else:
+                        st.open_dropdown = "dataset"
+    
+                def make_dataset_dropdown_handler(val):
+                    def handler(e: me.ClickEvent):
+                        st = me.state(State)
+                        st.dataset_filter = val
+                        st.open_dropdown = ""
+    
+                    handler.__name__ = f"click_dataset_dd_{val}"
+                    return handler
+    
+                mk_dataset_dd = make_dataset_dropdown_handler
+    
+                with me.box(
+                    style=me.Style(
+                        position="relative",
+                        width="200px",
+                    )
+                ):
+                    # The Box acting as Dropdown Trigger
+                    with me.box(
+                        style=me.Style(
+                            background="#ffffff",
+                            border=me.Border.all(
+                                me.BorderSide(
+                                    width="1px",
+                                    color="#e2e8f0",
+                                )
+                            ),
+                            border_radius="4px",
+                            padding=me.Padding.all("8px"),
+                            cursor="pointer",
+                        ),
+                        on_click=toggle_dataset_dropdown,
+                    ):
+                        me.text(
+                            state.dataset_filter
+                            if state.dataset_filter
+                            else "Filter by Dataset",
+                            style=me.Style(
+                                color="#1f2937"
+                            ),
+                        )
+    
+                    # The Popup List
+                    if state.open_dropdown == "dataset":
+                        with me.box(
+                            style=me.Style(
+                                position="absolute",
+                                top="100%",
+                                left="0",
+                                z_index=10,
+                                background="#ffffff",
+                                border=me.Border.all(
+                                    me.BorderSide(
+                                        width="1px",
+                                        color="#e2e8f0",
+                                    )
+                                ),
+                                border_radius="4px",
+                                width="100%",
+                                max_height="200px",
+                                overflow_y="auto",
+                            )
+                        ):
+                            # All option
+                            with me.box(
+                                style=me.Style(
+                                    padding=me.Padding.all("8px"),
+                                    cursor="pointer",
+                                ),
+                                on_click=mk_dataset_dd(""),
+                            ):
+                                me.text(
+                                    "All",
+                                    style=me.Style(
+                                        color="#1f2937"
+                                    ),
+                                )
+    
+                            for d in datasets:
+                                with me.box(
+                                    style=me.Style(
+                                        padding=me.Padding.all("8px"),
+                                        cursor="pointer",
+                                    ),
+                                    on_click=mk_dataset_dd(d),
+                                ):
+                                    me.text(
+                                        d,
+                                        style=me.Style(
+                                            color="#1f2937"
+                                        ),
+                                    )
+    
             def on_sort_click(col_name):
                 s = me.state(State)
                 if s.sort_column == col_name:
@@ -964,6 +1113,9 @@ def list_view_component(directories, results_dir):
             def click_latency(e):
                 on_sort_click("end_to_end_latency")
     
+            def click_goal_comp(e):
+                on_sort_click("goal_completion")
+
             sort_handlers = {
                 "id": click_id,
                 "date": click_date,
@@ -971,6 +1123,7 @@ def list_view_component(directories, results_dir):
                 "requester": click_requester,
                 "dataset": click_dataset,
                 "trajectory_matcher": click_traj,
+                "goal_completion": click_goal_comp,
                 "turn_count": click_turns,
                 "executable": click_exec,
                 "token_consumption": click_tokens,
@@ -1068,6 +1221,11 @@ def list_view_component(directories, results_dir):
                             "trajectory_matcher",
                             "18ch",
                         ),
+                        (
+                            "Goal Completion",
+                            "goal_completion",
+                            "16ch",
+                        ),
                         ("Turn Count", "turn_count", "12ch"),
                         ("Executable", "executable", "12ch"),
                         (
@@ -1092,6 +1250,7 @@ def list_view_component(directories, results_dir):
                     req_val = item.get("requester", "N/A")
                     dataset_val = item.get("dataset", "N/A")
                     traj = item.get("trajectory_matcher", "N/A")
+                    goal_comp = item.get("goal_completion", "N/A")
                     turns = item.get("turn_count", "N/A")
                     exec_val = item.get("executable", "N/A")
                     tokens = item.get("token_consumption", "N/A")
@@ -1254,6 +1413,31 @@ def list_view_component(directories, results_dir):
                                 traj,
                                 style=me.Style(
                                     color=get_color_for_pct(traj)
+                                ),
+                            )
+    
+                        with me.box(
+                            style=me.Style(
+                                display="table-cell",
+                                padding=me.Padding.symmetric(
+                                    vertical="10px", horizontal="16px"
+                                ),
+                                text_align="center",
+                                border=me.Border.all(
+                                    me.BorderSide(
+                                        width="1px",
+                                        color="#e2e8f0",
+                                        style="solid",
+                                    )
+                                ),
+                                width="16ch",
+                                white_space="nowrap",
+                            )
+                        ):
+                            me.text(
+                                goal_comp,
+                                style=me.Style(
+                                    color=get_color_for_pct(goal_comp)
                                 ),
                             )
     
