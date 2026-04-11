@@ -5,6 +5,7 @@ import yaml
 import logging
 import json
 import subprocess
+import precompute_trends
 
 @me.stateclass
 class State:
@@ -21,6 +22,7 @@ class State:
     open_dropdown: str = ""
     selected_main_tab: str = "Status"
     trends_product_filter: str = ""
+    cache_cleared_message: str = ""
 
 try:
     # Try to read version from file (created during build)
@@ -1576,6 +1578,30 @@ def render_app_content():
             state.selected_directory = ""
             state.conversation_index = 0
             me.navigate("/")
+            
+        def on_clear_cache_click(e: me.ClickEvent):
+            results_dir = get_results_dir()
+            processed_dirs_file = os.path.join(results_dir, "processed_dirs.json")
+            trends_cache_file = os.path.join(results_dir, "trends_cache.csv")
+            filters_cache_file = os.path.join(results_dir, "filters_cache.json")
+            
+            try:
+                if os.path.exists(processed_dirs_file):
+                    os.remove(processed_dirs_file)
+                if os.path.exists(trends_cache_file):
+                    os.remove(trends_cache_file)
+                if os.path.exists(filters_cache_file):
+                    os.remove(filters_cache_file)
+                
+                logging.info("Cleared precomputed files. Triggering precompute...")
+                
+                import threading
+                threading.Thread(target=precompute_trends.precompute).start()
+                
+                state.cache_cleared_message = "Cache cleared. Precompute triggered in background."
+            except Exception as ex:
+                logging.error(f"Error clearing cache: {ex}")
+                state.cache_cleared_message = f"Error clearing cache: {ex}"
     
         # Full-width header bar
         with me.box(
@@ -1641,6 +1667,18 @@ def render_app_content():
                 with me.box(style=me.Style(display="flex", align_items="center", gap="6px", font_size="12px")):
                     me.box(style=me.Style(width="8px", height="8px", border_radius="50%", background=cache_color))
                     me.text(f"Cache: {cache_status}", style=me.Style(font_weight="500", color="#94a3b8"))
+                    # me.button(
+                    #     "Clear Cache",
+                    #     on_click=on_clear_cache_click,
+                    #     style=me.Style(
+                    #         color="#f8fafc",
+                    #         font_size="10px",
+                    #         background="#ef4444",
+                    #         padding=me.Padding.symmetric(vertical="2px", horizontal="4px"),
+                    #         border_radius="3px",
+                    #         margin=me.Margin(left="10px"),
+                    #     )
+                    # )
     
         # Centered content at 90% browser width
         with me.box(
