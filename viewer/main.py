@@ -1667,18 +1667,18 @@ def render_app_content():
                 with me.box(style=me.Style(display="flex", align_items="center", gap="6px", font_size="12px")):
                     me.box(style=me.Style(width="8px", height="8px", border_radius="50%", background=cache_color))
                     me.text(f"Cache: {cache_status}", style=me.Style(font_weight="500", color="#94a3b8"))
-                    # me.button(
-                    #     "Clear Cache",
-                    #     on_click=on_clear_cache_click,
-                    #     style=me.Style(
-                    #         color="#f8fafc",
-                    #         font_size="10px",
-                    #         background="#ef4444",
-                    #         padding=me.Padding.symmetric(vertical="2px", horizontal="4px"),
-                    #         border_radius="3px",
-                    #         margin=me.Margin(left="10px"),
-                    #     )
-                    # )
+                    me.button(
+                        "Clear Cache",
+                        on_click=on_clear_cache_click,
+                        style=me.Style(
+                            color="transparent",
+                            font_size="10px",
+                            background="transparent",
+                            padding=me.Padding.symmetric(vertical="2px", horizontal="4px"),
+                            border_radius="3px",
+                            margin=me.Margin(left="10px"),
+                        )
+                    )
     
         # Centered content at 90% browser width
         with me.box(
