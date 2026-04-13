@@ -6,6 +6,7 @@ import logging
 import json
 import subprocess
 import precompute_trends
+from summarizer import summarize_eval_scoring
 
 @me.stateclass
 class State:
@@ -23,6 +24,10 @@ class State:
     selected_main_tab: str = "Status"
     trends_product_filter: str = ""
     cache_cleared_message: str = ""
+    ai_summary: str = ""
+    is_summarizing: bool = False
+    ai_score: float = 0.0
+    show_formula: bool = False
 
 try:
     # Try to read version from file (created during build)
@@ -262,6 +267,7 @@ def status_component():
                 cache_df = pd.read_csv(cache_file)
                 for _, row in cache_df.iterrows():
                     data.append({
+                        'AI Score': row['ai_score'] if 'ai_score' in row else None,
                         'Product': row['product'],
                         'Dataset': row['dataset'] if 'dataset' in row and not pd.isna(row['dataset']) else "N/A",
                         'Trajectory Matcher': row['trajectory'],
@@ -334,6 +340,7 @@ def status_component():
                         headers = [
                             "Product",
                             "Dataset",
+                            "AI Score",
                             "Trajectory Matcher",
                             "Goal Completion",
                             "Turn Count",
@@ -411,8 +418,15 @@ def status_component():
                             render_cell(product_val, color="#2563eb", on_click=click_handler)
                             render_cell(dataset_val, color="#2563eb", on_click=click_handler)
                             
+                            if pd.isna(row['AI Score']):
+                                render_cell("N/A", color="#94a3b8", cell_bg="#e2e8f0")
+                            else:
+                                score_str = f"{row['AI Score']:.0f}%"
+                                render_cell(score_str, get_color_for_pct(score_str))
+                            
                             if is_na:
                                 # Make cells gray for products with no data
+                                render_cell("N/A", color="#94a3b8", cell_bg="#e2e8f0")
                                 render_cell("N/A", color="#94a3b8", cell_bg="#e2e8f0")
                                 render_cell("N/A", color="#94a3b8", cell_bg="#e2e8f0")
                                 render_cell("N/A", color="#94a3b8", cell_bg="#e2e8f0")
@@ -496,12 +510,20 @@ def list_view_component(directories, results_dir):
                     try:
                         cache_df = pd.read_csv(cache_file)
                         for _, row in cache_df.iterrows():
+                            score = row['ai_score'] if 'ai_score' in row else 0.0
+                            if (score == 0.0 or pd.isna(score)) and 'ai_summary' in row and not pd.isna(row['ai_summary']):
+                                import re
+                                match = re.search(r"General Score:.*?(\d+(\.\d+)?)", row['ai_summary'])
+                                if match:
+                                    score = float(match.group(1))
+                                    
                             summaries.append({
                                 "id": str(row['job_id']),
                                 "date": str(row['run_time']) if not pd.isna(row['run_time']) else "N/A",
                                 "product": str(row['product']) if not pd.isna(row['product']) else "N/A",
                                 "requester": str(row['requester']) if not pd.isna(row['requester']) else "N/A",
                                 "dataset": str(row['dataset']) if 'dataset' in row and not pd.isna(row['dataset']) else "N/A",
+                                "ai_score": f"{score:.0f}%" if not pd.isna(score) and score != 0.0 else "N/A",
                                 "exact_match": f"{row['exact_match']:.0f}%" if not pd.isna(row['exact_match']) else "N/A",
                                 "llmrater": f"{row['llmrater']:.0f}%" if not pd.isna(row['llmrater']) else "N/A",
                                 "trajectory_matcher": f"{row['trajectory']:.0f}%" if not pd.isna(row['trajectory']) else "N/A",
@@ -530,6 +552,7 @@ def list_view_component(directories, results_dir):
                     "llmrater",
                     "trajectory_matcher",
                     "executable",
+                    "ai_score",
                 ]:
                     if val == "N/A":
                         return -1.0 if reverse else 101.0
@@ -1117,6 +1140,9 @@ def list_view_component(directories, results_dir):
     
             def click_goal_comp(e):
                 on_sort_click("goal_completion")
+    
+            def click_ai_score(e):
+                on_sort_click("ai_score")
 
             sort_handlers = {
                 "id": click_id,
@@ -1124,6 +1150,7 @@ def list_view_component(directories, results_dir):
                 "product": click_product,
                 "requester": click_requester,
                 "dataset": click_dataset,
+                "ai_score": click_ai_score,
                 "trajectory_matcher": click_traj,
                 "goal_completion": click_goal_comp,
                 "turn_count": click_turns,
@@ -1218,6 +1245,7 @@ def list_view_component(directories, results_dir):
                         ("Product", "product", None),
                         ("Requester", "requester", None),
                         ("Dataset", "dataset", None),
+                        ("AI Score", "ai_score", "10ch"),
                         (
                             "Trajectory Matcher",
                             "trajectory_matcher",
@@ -1251,6 +1279,7 @@ def list_view_component(directories, results_dir):
                     prod = item["product"]
                     req_val = item.get("requester", "N/A")
                     dataset_val = item.get("dataset", "N/A")
+                    ai_score_val = item.get("ai_score", "N/A")
                     traj = item.get("trajectory_matcher", "N/A")
                     goal_comp = item.get("goal_completion", "N/A")
                     turns = item.get("turn_count", "N/A")
@@ -1390,6 +1419,31 @@ def list_view_component(directories, results_dir):
                                 dataset_val,
                                 style=me.Style(
                                     color="#334155"
+                                ),
+                            )
+                        
+                        with me.box(
+                            style=me.Style(
+                                display="table-cell",
+                                padding=me.Padding.symmetric(
+                                    vertical="10px", horizontal="16px"
+                                ),
+                                text_align="center",
+                                border=me.Border.all(
+                                    me.BorderSide(
+                                        width="1px",
+                                        color="#e2e8f0",
+                                        style="solid",
+                                    )
+                                ),
+                                width="10ch",
+                                white_space="nowrap",
+                            )
+                        ):
+                            me.text(
+                                ai_score_val,
+                                style=me.Style(
+                                    color=get_color_for_pct(ai_score_val)
                                 ),
                             )
     
@@ -1701,6 +1755,20 @@ def render_app_content():
     
                 def on_tab_change(e: me.ButtonToggleChangeEvent):
                     state.selected_tab = e.value
+                    
+                def on_generate_summary_click(e: me.ClickEvent):
+                    state = me.state(State)
+                    results_dir_full = os.path.join(results_dir, state.selected_directory)
+                    state.ai_summary = summarize_eval_scoring(results_dir_full)
+                    # Parse score
+                    import re
+                    match = re.search(r"\*\*General Score:\s*(\d+(\.\d+)?)[^*]*\*\*", state.ai_summary)
+                    if match:
+                        state.ai_score = float(match.group(1))
+                        
+                def on_info_click(e: me.ClickEvent):
+                    state = me.state(State)
+                    state.show_formula = not state.show_formula
     
                 me.button_toggle(
                     value=state.selected_tab,
@@ -1716,7 +1784,6 @@ def render_app_content():
                         me.ButtonToggleButton(
                             label="Conversations", value="Conversations"
                         ),
-                        # me.ButtonToggleButton(label="Summary", value="Summary"),
                     ],
                     on_change=on_tab_change,
                 )
@@ -1764,6 +1831,51 @@ def render_app_content():
                     dashboard.dashboard_component(
                         os.path.join(results_dir, state.selected_directory)
                     )
+                    
+                    me.divider()
+                    me.text("AI Summary", type="headline-5")
+                    
+                    if not state.ai_summary and state.selected_directory:
+                        trends_cache_file = os.path.join(results_dir, "trends_cache.csv")
+                        if os.path.exists(trends_cache_file):
+                            try:
+                                cache_df = pd.read_csv(trends_cache_file)
+                                run_data = cache_df[cache_df['job_id'] == state.selected_directory]
+                                if not run_data.empty and 'ai_summary' in run_data.columns:
+                                    summary = run_data['ai_summary'].values[0]
+                                    if not pd.isna(summary) and summary != "N/A":
+                                        state.ai_summary = summary
+                                if not run_data.empty and 'ai_score' in run_data.columns:
+                                    score = run_data['ai_score'].values[0]
+                                    if not pd.isna(score):
+                                        state.ai_score = float(score)
+                                
+                                # Fallback if score was not parsed correctly in cache
+                                if state.ai_score == 0.0 and state.ai_summary:
+                                    import re
+                                    match = re.search(r"General Score:.*?(\d+(\.\d+)?)", state.ai_summary)
+                                    if match:
+                                        state.ai_score = float(match.group(1))
+                            except Exception as e:
+                                logging.error(f"Error reading AI summary from cache: {e}")
+                    
+                    if not state.ai_summary:
+                        me.button("Generate AI Summary", on_click=on_generate_summary_click)
+                    
+                    if state.ai_summary:
+                        with me.box(style=me.Style(display="flex", align_items="flex-start", margin=me.Margin(bottom="8px"))):
+                            me.text(f"General Score: {state.ai_score}", type="headline-6")
+                            with me.box(style=me.Style(margin=me.Margin(left="2px"), cursor="pointer"), on_click=on_info_click):
+                                me.text("ⓘ", style=me.Style(color="#2563eb", font_size="12px"))
+                        
+                        if state.show_formula:
+                            me.text("Formula: 0.4 * goal_completion + 0.2 * trajectory_matcher + 0.2 * behavioral_metrics + 0.2 * parameter_analysis", style=me.Style(font_size="14px", color="#6b7280", margin=me.Margin(bottom="16px")))
+                        
+                        # Strip score from summary if present to avoid duplication
+                        import re
+                        clean_summary = re.sub(r"^\s*\*\*General Score:\s*\d+(\.\d+)?[^*]*\*\*\s*", "", state.ai_summary)
+                        me.markdown(clean_summary)
+                        
                 elif state.selected_tab == "Conversations":
     
                     def on_prev_conversation(e: me.ClickEvent):
@@ -1828,20 +1940,6 @@ def render_app_content():
                         me.text(
                             f"scores.csv not found in {state.selected_directory}"
                         )
-                elif state.selected_tab == "Summary":
-                        summary_path = os.path.join(
-                            results_dir, state.selected_directory, "summary.csv"
-                        )
-                        if os.path.exists(summary_path):
-                            try:
-                                df = pd.read_csv(summary_path)
-                                me.table(data_frame=df)
-                            except Exception as e:
-                                me.text(f"Error reading summary.csv: {e}")
-                        else:
-                            me.text(
-                                f"summary.csv not found in {state.selected_directory}"
-                            )
 
 
             else:
