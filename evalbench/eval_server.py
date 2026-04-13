@@ -1,8 +1,10 @@
-"""Server on GCP side for the evaluation service."""
-
 import os
 import sys
 from absl import logging
+
+import logging as py_logging
+from util.context import rpc_id_var
+
 
 # --- Logging Initialization (MUST happen before other imports) ---
 
@@ -21,9 +23,23 @@ class UncloseableStream:
         pass  # Do not close the underlying stream
 
 
+class SessionIdFilter(py_logging.Filter):
+    def filter(self, record):
+        record.session_id = rpc_id_var.get()
+        return True
+
+
 logging.use_absl_handler()
-# Prevent stream closing globally
-logging.get_absl_handler().python_handler.stream = UncloseableStream(sys.stdout)
+python_handler = logging.get_absl_handler().python_handler
+python_handler.stream = UncloseableStream(sys.stdout)
+
+formatter = py_logging.Formatter(
+    '%(asctime)s [%(session_id)s] %(levelname)s '
+    '%(filename)s:%(lineno)d: %(message)s'
+)
+python_handler.setFormatter(formatter)
+python_handler.addFilter(SessionIdFilter())
+
 
 # --- Remaining Imports ---
 import asyncio
@@ -40,8 +56,8 @@ from evalproto import eval_service_pb2_grpc
 _LOCALHOST = flags.DEFINE_bool(
     "localhost",
     False,
-    "Whether to use localhost. ALTS is only available on GCP, so this is useful"
-    " for local testing.",
+    "Whether to use localhost. ALTS is only available on GCP, so this is "
+    "useful for local testing.",
 )
 
 CLOUD_RUN = os.getenv("CLOUD_RUN", False)
