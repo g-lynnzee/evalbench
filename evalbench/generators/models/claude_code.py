@@ -28,9 +28,11 @@ class ClaudeCodeGenerator(QueryGenerator):
         # If running via eval_server.py (gRPC), use session-specific path in shared volume
         if sys.argv[0].endswith("eval_server.py"):
             session_id = querygenerator_config.get("session_id", "default")
-            self.fake_home = os.path.join("/tmp_sessions", session_id, "fake_home")
+            self.fake_home = os.path.join(
+                "/tmp_sessions", session_id, "fake_home")
         else:
-            self.fake_home = os.path.abspath(os.path.join(".venv", "fake_home_claude"))
+            self.fake_home = os.path.abspath(
+                os.path.join(".venv", "fake_home_claude"))
 
         self.claude_config_dir = os.path.join(self.fake_home, ".claude")
 
@@ -62,9 +64,11 @@ class ClaudeCodeGenerator(QueryGenerator):
                     "application_default_credentials.json",
                 )
             if adc_path and os.path.exists(adc_path):
-                fake_gcloud_dir = os.path.join(self.fake_home, ".config", "gcloud")
+                fake_gcloud_dir = os.path.join(
+                    self.fake_home, ".config", "gcloud")
                 os.makedirs(fake_gcloud_dir, exist_ok=True)
-                fake_adc_path = os.path.join(fake_gcloud_dir, "application_default_credentials.json")
+                fake_adc_path = os.path.join(
+                    fake_gcloud_dir, "application_default_credentials.json")
                 if os.path.abspath(adc_path) != os.path.abspath(fake_adc_path):
                     import shutil
                     shutil.copy2(adc_path, fake_adc_path)
@@ -74,7 +78,8 @@ class ClaudeCodeGenerator(QueryGenerator):
                     self.real_home, ".config", "gcloud"
                 )
         else:
-            api_key = self.env.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_API_KEY")
+            api_key = self.env.get("ANTHROPIC_API_KEY") or os.environ.get(
+                "ANTHROPIC_API_KEY")
             if api_key:
                 self.env["ANTHROPIC_API_KEY"] = api_key
 
@@ -127,7 +132,8 @@ class ClaudeCodeGenerator(QueryGenerator):
                 server_name, dict(config)
             )
 
-        self.mcp_config_path = os.path.join(self.claude_config_dir, "mcp_servers.json")
+        self.mcp_config_path = os.path.join(
+            self.claude_config_dir, "mcp_servers.json")
         with open(self.mcp_config_path, "w") as f:
             json.dump(mcp_config, f, indent=2)
 
@@ -188,8 +194,11 @@ class ClaudeCodeGenerator(QueryGenerator):
             try:
                 with open(settings_path, "r") as f:
                     current_settings = json.load(f)
-            except json.JSONDecodeError:
-                pass
+            except json.JSONDecodeError as e:
+                logging.warning(
+                    f"Invalid JSON in Claude Code settings at {settings_path}; "
+                    f"proceeding with empty settings. Error: {e}"
+                )
 
         current_settings.update(settings_config)
 
@@ -331,7 +340,8 @@ class ClaudeCodeGenerator(QueryGenerator):
                     total_input_tokens = usage.get("input_tokens", 0)
                     total_output_tokens = usage.get("output_tokens", 0)
                     total_cache_read = usage.get("cache_read_input_tokens", 0)
-                    total_cache_creation = usage.get("cache_creation_input_tokens", 0)
+                    total_cache_creation = usage.get(
+                        "cache_creation_input_tokens", 0)
                     total_tokens = total_input_tokens + total_output_tokens
 
                     duration_ms = event.get("duration_ms", 0)
@@ -346,7 +356,8 @@ class ClaudeCodeGenerator(QueryGenerator):
                             m_input = m_stats.get("inputTokens", 0)
                             m_output = m_stats.get("outputTokens", 0)
                             m_cached = m_stats.get("cacheReadInputTokens", 0)
-                            m_cache_creation = m_stats.get("cacheCreationInputTokens", 0)
+                            m_cache_creation = m_stats.get(
+                                "cacheCreationInputTokens", 0)
                             models[m_name] = {
                                 "api": {
                                     "totalRequests": 1,
