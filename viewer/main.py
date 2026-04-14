@@ -1072,7 +1072,7 @@ def list_view_component(directories, results_dir):
                 with me.box(
                     style=me.Style(
                         position="relative",
-                        width="200px",
+                        width="300px",
                     )
                 ):
                     # The Box acting as Dropdown Trigger
