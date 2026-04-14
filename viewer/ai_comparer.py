@@ -78,7 +78,7 @@ def compare_evals(id1, id2):
         evals2 = pd.read_csv(os.path.join(path2, "evals.csv"))
         scores2 = pd.read_csv(os.path.join(path2, "scores.csv")) if os.path.exists(os.path.join(path2, "scores.csv")) else None
         
-        prompt_file = os.path.join(os.path.dirname(__file__), "ai_comparer.md")
+        prompt_file = os.path.join(os.path.dirname(__file__), "config", "ai_comparer.md")
         prompt_instructions = "Compare the following two evaluation runs. Highlight differences in performance, errors, and trajectories."
         if os.path.exists(prompt_file):
             with open(prompt_file, "r") as f:
