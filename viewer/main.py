@@ -415,7 +415,9 @@ def status_component():
                                 
                                 safe_p = str(p_val).replace(" ", "_").replace(".", "_").replace("-", "_")
                                 safe_d = str(d_val).replace(" ", "_").replace(".", "_").replace("-", "_")
-                                handler.__name__ = f"click_status_row_{safe_p}_{safe_d}"
+                                handler_name = f"click_status_row_{safe_p}_{safe_d}"
+                                handler.__name__ = handler_name
+                                globals()[handler_name] = handler
                                 return handler
                                 
                             click_handler = make_click_handler(product_val, dataset_val)
@@ -585,9 +587,6 @@ def list_view_component(directories, results_dir):
     
             summaries.sort(key=get_sort_key, reverse=reverse)
             
-            # Limit number of rows to show after filter/sort
-            summaries = summaries[:state.rows_to_show]
-    
             # Extract unique values for filters from ALL summaries
             all_summaries = []
             if s.eval_summaries:
@@ -681,6 +680,9 @@ def list_view_component(directories, results_dir):
                     == state.dataset_filter
                 ]
     
+            # Limit number of rows to show after filter/sort
+            summaries = summaries[:state.rows_to_show]
+    
             # Render filters UI
             with me.box(
                 style=me.Style(
@@ -718,7 +720,9 @@ def list_view_component(directories, results_dir):
                         st.eval_id_filter = val
                         st.open_dropdown = ""
     
-                    handler.__name__ = f"click_eval_id_{val}"
+                    handler_name = f"click_eval_id_{val}"
+                    handler.__name__ = handler_name
+                    globals()[handler_name] = handler
                     return handler
     
                 with me.box(
@@ -819,7 +823,9 @@ def list_view_component(directories, results_dir):
     
                     # Sanitize name for Mesop event routing
                     safe_val = str(val).replace(" ", "_").replace(".", "_").replace("-", "_")
-                    handler.__name__ = f"click_prod_dd_{safe_val}"
+                    handler_name = f"click_prod_dd_{safe_val}"
+                    handler.__name__ = handler_name
+                    globals()[handler_name] = handler
                     return handler
     
                 mk_prod_dd = make_prod_dropdown_handler
@@ -922,7 +928,9 @@ def list_view_component(directories, results_dir):
     
                     # Sanitize name for Mesop event routing
                     safe_val = str(val).replace(" ", "_").replace(".", "_").replace("-", "_")
-                    handler.__name__ = f"click_req_dd_{safe_val}"
+                    handler_name = f"click_req_dd_{safe_val}"
+                    handler.__name__ = handler_name
+                    globals()[handler_name] = handler
                     return handler
     
                 mk_req_dd = make_req_dropdown_handler
@@ -1025,7 +1033,9 @@ def list_view_component(directories, results_dir):
     
                     # Sanitize name for Mesop event routing
                     safe_val = str(val).replace(" ", "_").replace(".", "_").replace("-", "_")
-                    handler.__name__ = f"click_dataset_dd_{safe_val}"
+                    handler_name = f"click_dataset_dd_{safe_val}"
+                    handler.__name__ = handler_name
+                    globals()[handler_name] = handler
                     return handler
     
                 mk_dataset_dd = make_dataset_dropdown_handler
@@ -1126,7 +1136,9 @@ def list_view_component(directories, results_dir):
                         st.rows_to_show = val
                         st.open_dropdown = ""
     
-                    handler.__name__ = f"click_rows_{val}"
+                    handler_name = f"click_rows_{val}"
+                    handler.__name__ = handler_name
+                    globals()[handler_name] = handler
                     return handler
     
                 with me.box(

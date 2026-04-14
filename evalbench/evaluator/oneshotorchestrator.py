@@ -7,7 +7,7 @@ import json
 import tempfile
 import threading
 import uuid
-from multiprocessing import Manager
+from multiprocessing import get_context
 
 import databases
 import generators.models as models
@@ -59,7 +59,7 @@ class OneShotOrchestrator(Orchestrator):
         tmp_buffer = None
         colab_progress_report = None
 
-        with Manager() as manager:
+        with get_context('spawn').Manager() as manager:
             sub_datasets, total_dataset_len, total_db_len = breakdown_datasets(
                 dataset)
             try:

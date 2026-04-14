@@ -33,6 +33,7 @@ RUN cp /evalbench/evalbench_service/supervisord_evalbench.conf /evalbench/superv
 RUN cp /evalbench/evalbench_service/supervisord_cloudrun.conf /evalbench/supervisord_cloudrun.conf
 RUN cp /evalbench/evalbench_service/entrypoint.sh /evalbench/entrypoint.sh && chmod +x /evalbench/entrypoint.sh
 RUN chmod +x /evalbench/evalbench/run.sh
+RUN chmod +x /evalbench/viewer/run_frontend.sh
 
 WORKDIR /evalbench
 CMD ["/evalbench/entrypoint.sh"]
