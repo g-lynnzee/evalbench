@@ -128,7 +128,7 @@ class EvalServicer(eval_service_pb2_grpc.EvalServiceServicer):
             context.set_code(grpc.StatusCode.FAILED_PRECONDITION)
             context.set_details("Session not configured")
             return eval_response_pb2.EvalResponse()
-            
+
         config["session_id"] = session_id
 
         streaming_eval = session.get("streaming_eval", False) if session else False

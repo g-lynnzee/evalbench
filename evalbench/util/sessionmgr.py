@@ -120,7 +120,7 @@ class SessionManager:
                 to_delete = [sid for sid, s in self.sessions.items() if now - s["create_ts"] > self.ttl]
             finally:
                 self.lock.release_read()
-                
+
             for sid in to_delete:
                 logging.info(f"Delete session {sid}.")
                 self.delete_session(sid)
