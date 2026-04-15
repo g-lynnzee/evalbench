@@ -474,7 +474,6 @@ def status_component():
 
 def list_view_component(directories, results_dir):
     state = me.state(State)
-    import json
     try:
         selected_evals_list = json.loads(state.selected_evals)
     except Exception:
@@ -1238,7 +1237,6 @@ def list_view_component(directories, results_dir):
                 def make_select_handler(job_id, item_product, item_dataset):
                     def handler(e: me.ClickEvent):
                         st = me.state(State)
-                        import json
                         try:
                             sel = json.loads(st.selected_evals)
                         except Exception:
@@ -1457,7 +1455,6 @@ def list_view_component(directories, results_dir):
                             logging.info("Set ai_comparison to Comparing... in on_compare_click")
                             yield
                             
-                            import json
                             try:
                                 comp_evals = json.loads(st.compare_evals)
                             except Exception:
@@ -1938,7 +1935,6 @@ def on_compare_tab_click(e: me.ClickEvent):
         logging.info("Set ai_comparison to Comparing...")
         yield
         
-        import json
         try:
             comp_evals = json.loads(st.compare_evals)
         except Exception:
@@ -2327,7 +2323,6 @@ def render_app_content():
                             elif state.selected_main_tab == "Status":
                                 status_component()
                             elif state.selected_main_tab == "Compare":
-                                import json
                                 try:
                                     comp_evals = json.loads(state.compare_evals)
                                 except Exception:
