@@ -711,6 +711,9 @@ def list_view_component(directories, results_dir):
             # Limit number of rows to show after filter/sort
             summaries = summaries[:state.rows_to_show]
     
+            # Limit number of rows to show after filter/sort
+            summaries = summaries[:state.rows_to_show]
+    
             # Render filters UI
             with me.box(
                 style=me.Style(
