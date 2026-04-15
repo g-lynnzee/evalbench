@@ -9,7 +9,7 @@ spec:
     name: evalbench-eval-server-deploy
     apiVersion: apps/v1
   updatePolicy:
-    updateMode: Auto
+    updateMode: Initial
   resourcePolicy:
     containerPolicies:
       - containerName: "*"
