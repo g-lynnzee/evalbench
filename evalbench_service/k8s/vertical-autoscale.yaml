@@ -13,7 +13,7 @@ spec:
   resourcePolicy:
     containerPolicies:
       - containerName: "*"
-        mode: Auto
+        mode: "Off"
         controlledResources:
           - cpu
           - memory
