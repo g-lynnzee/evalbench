@@ -160,7 +160,7 @@ function drawChart() {
         .on("mouseout", function () {
             d3.select(this).attr("r", 5).style("stroke-width", "2px");
             tooltip.style("opacity", 0);
-        })
+        });
 
 
     // Add Title
