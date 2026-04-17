@@ -95,7 +95,10 @@ class SessionManager:
                 os.remove(file_path)
             for dir in dirs:
                 dir_path = os.path.join(root, dir)
-                os.rmdir(dir_path)
+                if os.path.islink(dir_path):
+                    os.unlink(dir_path)
+                else:
+                    os.rmdir(dir_path)
         os.rmdir(path)
 
     def create_session(self, session_id):

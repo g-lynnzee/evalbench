@@ -237,6 +237,17 @@ def on_load(e: me.LoadEvent):
     if job_id and job_id in directories:
         state.selected_directory = job_id
 
+    tab = me.query_params.get("tab")
+    eval1 = me.query_params.get("eval1")
+    eval2 = me.query_params.get("eval2")
+
+    if tab == "compare" and eval1 and eval2:
+        state.selected_main_tab = "Compare"
+        state.compare_tab_visible = True
+        state.compare_evals = json.dumps([eval1, eval2])
+        # Trigger the AI comparison
+        state.ai_comparison = compare_evals(eval1, eval2)
+
 
 
 
