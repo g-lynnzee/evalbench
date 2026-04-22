@@ -590,9 +590,11 @@ def list_view_component(directories, results_dir):
     
             if not summaries:
                 cache_file = os.path.join(results_dir, "trends_cache.csv")
+                logging.info(f"trends_cache.csv exists: {os.path.exists(cache_file)}")
                 if os.path.exists(cache_file):
                     try:
                         cache_df = pd.read_csv(cache_file)
+                        logging.info(f"Loaded {len(cache_df)} rows from trends cache.")
                         for _, row in cache_df.iterrows():
                             score = row['ai_score'] if 'ai_score' in row else 0.0
                             if (score == 0.0 or pd.isna(score)) and 'ai_summary' in row and not pd.isna(row['ai_summary']):
@@ -737,6 +739,7 @@ def list_view_component(directories, results_dir):
                 summaries = [x for x in summaries if x.get("model_config.generator") == "gemini_cli" or x.get("model_config.generator") == "unknown" or x.get("model_config.generator") == "N/A" or x.get("product") in ['spanner', 'bigtable', 'alloydb', 'memorystore', 'dms', 'datastream']]
             elif state.list_agent_tab == "Claude":
                 summaries = [x for x in summaries if x.get("model_config.generator") == "claude_code" or (x.get("model_config.generator") == "unknown" and 'claude' in str(x.get("product")).lower())]
+            logging.info(f"Number of summaries after tab filter: {len(summaries)}")
 
             if state.eval_id_filter:
                 summaries = [

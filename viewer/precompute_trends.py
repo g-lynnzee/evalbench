@@ -107,7 +107,7 @@ def process_directory(d, results_dir):
         run_time = summary_df['run_time'].values[0] if not summary_df.empty else "unknown"
         if run_time != "unknown":
             try:
-                run_time = pd.to_datetime(run_time).strftime('%Y-%m-%d')
+                run_time = pd.to_datetime(run_time).strftime('%Y-%m-%d %H:%M:%S')
             except Exception as e:
                 logging.warning(f"Failed to parse run_time '{run_time}': {e}")
 
