@@ -9,7 +9,7 @@ ENV GCLOUD_CONFIG=/root/.config/gcloud
 
 RUN \
   apt-get update -y && \
-  apt-get install -y unzip git wget apt-transport-https ca-certificates gnupg curl vim jq supervisor make python3 python3-pip && \
+  apt-get install -y unzip git wget apt-transport-https ca-certificates gnupg curl vim jq supervisor make python3 python3-pip sudo && \
   curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
   apt-get install -y nodejs
 
