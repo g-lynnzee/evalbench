@@ -126,6 +126,7 @@ def process_directory(d, results_dir):
         except Exception as e:
             logging.error(f"Error generating AI summary for {d}: {e}")
 
+        logging.info(f"Successfully processed directory: {d}")
         return {
             'run_time': run_time,
             'requester': requester,
