@@ -285,6 +285,10 @@ class ClaudeCodeGenerator(QueryGenerator):
         # (covers .claude dir, gcloud creds, MCP config copied during init).
         if self._chown_for_claudeuser:
             subprocess.run(
+                ["chmod", "-R", "777", self.fake_home],
+                check=False,
+            )
+            subprocess.run(
                 ["chown", "-R", "claudeuser", self.fake_home],
                 check=False,
             )
