@@ -324,6 +324,8 @@ def status_component():
                 logging.error(f"Error reading trends cache: {e}")
         else:
             logging.warning(f"Trends cache file not found at {cache_file}")
+            me.text("Trends cache file not found. Please run precompute.")
+            return
                     
         # Add requested default products if not present in data
         default_products = ['spanner', 'bigtable', 'alloydb', 'memorystore', 'dms', 'datastream']
@@ -333,6 +335,7 @@ def status_component():
                 data.append({
                     'Product': p,
                     'Dataset': 'N/A',
+                    'model_config.generator': 'unknown',
                     'AI Score': None,
                     'Trajectory Matcher': None,
                     'Goal Completion': None,
