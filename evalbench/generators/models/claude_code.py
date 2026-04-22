@@ -26,7 +26,6 @@ class ClaudeCodeGenerator(QueryGenerator):
 
         self.real_home = os.environ.get("HOME", os.path.expanduser("~"))
 
-
         # If running via eval_server.py (gRPC), use session-specific path in shared volume
         if sys.argv[0].endswith("eval_server.py"):
             session_id = querygenerator_config.get("session_id", "default")
@@ -50,7 +49,7 @@ class ClaudeCodeGenerator(QueryGenerator):
         self.env["IS_SANDBOX"] = "1"
 
         api_key = self.env.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_API_KEY")
-        
+
         if api_key:
             self.env["ANTHROPIC_API_KEY"] = api_key
             self.use_vertex = False
@@ -293,7 +292,6 @@ class ClaudeCodeGenerator(QueryGenerator):
         # root.  Wrap with `su` to drop privileges to a non-root user.
         # Recursively chown the fake_home so claudeuser can write to it
         # (covers .claude dir, gcloud creds, MCP config copied during init).
-
 
         logging.info(f"Running Claude Code CLI: {' '.join(command)}")
 
