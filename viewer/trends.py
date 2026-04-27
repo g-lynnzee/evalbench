@@ -247,6 +247,9 @@ def trends_component():
                 st = me.state(State)
                 st.trends_product_filter = val
                 st.open_dropdown = ""
+            
+            safe_val = str(val).replace(" ", "_").replace(".", "_").replace("-", "_")
+            handler.__name__ = f"click_trends_product_{safe_val}"
             return handler
             
         with me.box(style=me.Style(position="relative", width="300px")):
