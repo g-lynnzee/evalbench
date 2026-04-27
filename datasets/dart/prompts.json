@@ -10,8 +10,7 @@
     },
     "eval_query": {"mongodb": [null]},
     "tags": ["simple", "count"]
-  }
-]
+  },
   {
     "id": "ec_002",
     "nl_prompt": "How many orders are there for each status?",
