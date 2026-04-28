@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "evalbench"
-version = "1.1.0"
+version = "1.5.0"
 requires-python = ">=3.10"
 description = "Evalbench - evaluation benchmarking framework"
 readme = "README.md"
@@ -28,8 +28,8 @@ dependencies = [
     "protobuf",
     "absl-py",
     "tabulate",
-    "grpcio",
-    "grpcio-tools",
+    "grpcio>=1.80.0",
+    "grpcio-tools>=1.80.0",
     "aiologger",
     "jsonschema",
     "ratelimit",
@@ -45,6 +45,7 @@ dependencies = [
     "google-adk",
     "google-cloud-geminidataanalytics>=0.11.0",
     "google-cloud-firestore",
+    "google-cloud-iam",
 ]
 
 [tool.setuptools.packages.find]
@@ -59,3 +60,7 @@ members = [
 dev = [
     "pycodestyle>=2.14.0",
 ]
+
+[[tool.uv.index]]
+url = "https://pypi.org/simple"
+default = true

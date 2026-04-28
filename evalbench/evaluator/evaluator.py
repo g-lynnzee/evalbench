@@ -1,5 +1,4 @@
 import logging
-
 import time
 from typing import Any, List
 import datetime
@@ -37,8 +36,8 @@ def _process_futures_with_timeout(
         if elapsed_since_last > timeout:
 
             logging.error(
-                f"Abandoning {
-                    len(uncompleted)} hung futures after {timeout}s timeout.")
+                f"Abandoning {len(uncompleted)} hung futures after {timeout}s timeout."
+            )
             for f in list(uncompleted):
                 uncompleted.remove(f)
                 yield f, future_to_eval_map[f], True
@@ -82,6 +81,7 @@ class Evaluator:
         run_time: datetime.datetime,
         progress_reporting,
         global_models,
+        close_connections=True,
     ):
         eval_outputs: List[Any] = []
         scoring_results: List[Any] = []
@@ -151,7 +151,7 @@ class Evaluator:
             except Exception as e:
 
                 logging.error(
-                    f"Failed to acquire DB connection from queue: {e}")
+                    f"Failed to acquire DB connection from queue for database '{eval_output.get('database')}': {e}")
                 eval_output["generated_error"] = f"Failed to acquire DB connection: {e}"
                 record_successful_sql_exec(progress_reporting)
                 work = scorework.ScorerWork(
@@ -203,9 +203,15 @@ class Evaluator:
                 logging.error(f"Truncation error: {e}")
             eval_outputs.append(eval_output)
 
-        if db_queue:
-            while not db_queue.empty():
-                db = db_queue.get()
-                db.close_connections()
+        if close_connections and db_queue:
+            import queue
+            while True:
+                try:
+                    db = db_queue.get(block=False)
+                    db.close_connections()
+                except queue.Empty:
+                    break
+                except Exception:
+                    break
 
         return eval_outputs, scoring_results

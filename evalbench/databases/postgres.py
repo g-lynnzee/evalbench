@@ -5,6 +5,7 @@ from sqlalchemy.engine.base import Connection
 import logging
 from .db import DB
 from google.cloud.sql.connector import Connector
+from util.auth import get_adc_user_email
 from .util import (
     get_db_secret,
     with_cache_execute,
@@ -55,6 +56,10 @@ class PGDB(DB):
         # Normalize password for drivers that dislike None
         effective_password = self.password if self.password is not None else ""
 
+        self.use_adc = not self.username and not self.password
+        if self.use_adc:
+            self.username = get_adc_user_email()
+
         def get_conn():
             # Only used for Cloud SQL Connector path
             conn = CONNECTOR.connect(
@@ -63,6 +68,7 @@ class PGDB(DB):
                 user=self.username,
                 password=effective_password,
                 db=self.db_name,
+                enable_iam_auth=self.use_adc,
             )
             return conn
 
@@ -180,7 +186,7 @@ class PGDB(DB):
                 self.max_attempts,
             )
         except ResourceExhaustedError as e:
-            logging.info(
+            logging.error(
                 "Resource Exhausted on Postgres DB. Giving up execution. Try reducing execs_per_minute."
             )
             return None, None, None
@@ -234,7 +240,7 @@ class PGDB(DB):
             self.tmp_dbs.remove(database_name)
         _, error = self._execute_auto_commit(f"DROP DATABASE {database_name};")
         if error:
-            logging.info(f"Could not delete database: {error}")
+            logging.error(f"Could not delete database: {error}")
 
     def ensure_database_exists(self, database_name: str) -> None:
         from google.cloud.sql.connector import Connector
@@ -301,7 +307,7 @@ class PGDB(DB):
             self.tmp_users.remove(username)
         _, _, error = self.execute(DELETE_USER_QUERY.format(USERNAME=username))
         if error:
-            logging.info(f"Could not delete tmp user due to {error}")
+            logging.error(f"Could not delete tmp user due to {error}")
 
     #####################################################
     #####################################################

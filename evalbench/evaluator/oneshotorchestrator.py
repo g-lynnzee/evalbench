@@ -7,7 +7,7 @@ import json
 import tempfile
 import threading
 import uuid
-from multiprocessing import Manager
+from multiprocessing import get_context
 
 import databases
 import generators.models as models
@@ -59,7 +59,7 @@ class OneShotOrchestrator(Orchestrator):
         tmp_buffer = None
         colab_progress_report = None
 
-        with Manager() as manager:
+        with get_context('spawn').Manager() as manager:
             sub_datasets, total_dataset_len, total_db_len = breakdown_datasets(
                 dataset)
             try:
@@ -190,7 +190,7 @@ class OneShotOrchestrator(Orchestrator):
                 )
                 record_successful_setup(progress_reporting)
             except Exception as e:
-                logging.info(
+                logging.error(
                     f"Skipping {query_type} queries as DB {database} "
                     + f"could not be setup properly in {dialect} due to {e}."
                 )
@@ -215,7 +215,7 @@ class OneShotOrchestrator(Orchestrator):
                 total_eval_outputs.extend(eval_outputs)
                 total_scoring_results.extend(scoring_results)
             except Exception as e:
-                logging.info(
+                logging.error(
                     f"Failed to evaluate {sub_dataset_len} {query_type} queries " +
                     f"on DB {database} on {dialect}. Due to {e}")
 

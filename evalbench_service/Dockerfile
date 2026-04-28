@@ -9,7 +9,7 @@ ENV GCLOUD_CONFIG=/root/.config/gcloud
 
 RUN \
   apt-get update -y && \
-  apt-get install -y unzip git wget apt-transport-https ca-certificates gnupg curl vim jq supervisor make python3 python3-pip && \
+  apt-get install -y unzip git wget apt-transport-https ca-certificates gnupg curl vim jq supervisor make python3 python3-pip sudo && \
   curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
   apt-get install -y nodejs
 
@@ -26,12 +26,19 @@ RUN uv pip install --system --break-system-packages -r requirements.txt
 RUN uv pip install --system --break-system-packages ./viewer
 RUN uv pip install --system --break-system-packages .
 
+# Create a non-root user for Claude Code. It refuses
+# --dangerously-skip-permissions when running as root.
+RUN useradd -m -s /bin/bash claudeuser
+
 RUN ln -s /usr/bin/python3 /usr/bin/python
 RUN make proto -f ./Makefile
-RUN mkdir /tmp_session_files /tmp_sessions
-RUN cp /evalbench/evalbench_service/supervisord.conf /evalbench/supervisord.conf
+RUN mkdir -p /tmp_session_files /tmp_sessions /evalbench/results
+RUN cp /evalbench/evalbench_service/supervisord_evalbench.conf /evalbench/supervisord_evalbench.conf
+RUN cp /evalbench/evalbench_service/supervisord_cloudrun.conf /evalbench/supervisord_cloudrun.conf
+RUN cp /evalbench/evalbench_service/supervisord_combined.conf /evalbench/supervisord_combined.conf
 RUN cp /evalbench/evalbench_service/entrypoint.sh /evalbench/entrypoint.sh && chmod +x /evalbench/entrypoint.sh
 RUN chmod +x /evalbench/evalbench/run.sh
+RUN chmod +x /evalbench/viewer/run_frontend.sh
 
 WORKDIR /evalbench
 CMD ["/evalbench/entrypoint.sh"]
