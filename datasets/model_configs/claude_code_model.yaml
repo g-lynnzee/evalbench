@@ -2,30 +2,34 @@
 #   - Globally installed binary:  "claude"
 #   - Pin to a specific npm version (uses `npm exec --yes` like Gemini CLI):
 #       "@anthropic-ai/claude-code@2.1.85"
-claude_code_version: "@anthropic-ai/claude-code@2.1.119"
+claude_code_version: "@anthropic-ai/claude-code@2.1.85"
 
 generator: claude_code
 
-model: "claude-opus-4-7"
+# Model to use.
+#   - Vertex model IDs: "claude-opus-4-6", "claude-sonnet-4@20250514"
+#   - Direct API model IDs: "claude-sonnet-4-20250514", "claude-opus-4-20250514"
+model: "claude-opus-4-6"
 
-use_vertex: true
+# --- Auth Option 1: Vertex AI (GCP ADC, no API key) ---
+# Requires Claude models enabled in your GCP project via Model Garden.
+# use_vertex: true
+# vertex_project_id: "astana-evaluation"
+# vertex_region: "us-east5"
+
+use_vertex: false
 env:
-  ANTHROPIC_VERTEX_PROJECT_ID: "astana-evaluation"
-  CLOUD_ML_REGION: "global"
-  # Cloud SQL PostgreSQL extension configuration
-  CLOUD_SQL_POSTGRES_PROJECT: "astana-evaluation"
-  CLOUD_SQL_POSTGRES_REGION: "us-central1"
-  CLOUD_SQL_POSTGRES_INSTANCE: "nl2code"
-  CLOUD_SQL_POSTGRES_DATABASE: "cymbalShop"
-  CLOUD_SQL_POSTGRES_USER: "app"
-  CLOUD_SQL_POSTGRES_PASSWORD: "Google123*"
-  CLOUD_SQL_POSTGRES_IP_TYPE: "PUBLIC"
+  ANTHROPIC_API_KEY: <API_KEY>
+  GOOGLE_CLOUD_PROJECT: "astana-evaluation"
+  GOOGLE_CLOUD_LOCATION: "us-central1"
 
 setup:
-  # Install skills from main branch (uses npx toolbox-sdk, no local binary needed)
-  # For full plugin marketplace setup (interactive), manually run in Claude Code:
-  #   /plugin marketplace add https://github.com/gemini-cli-extensions/cloud-sql-postgresql.git
-  #   /plugin install cloud-sql-postgresql@cloud-sql-postgresql-marketplace
-  skills:
-    - action: install_from_repo
-      url: "https://github.com/gemini-cli-extensions/cloud-sql-postgresql.git"
+  mcp_servers:
+    "cloud-sql":
+      httpUrl: "https://sqladmin.googleapis.com/mcp"
+      authProviderType: google_credentials
+      oauth:
+        scopes:
+        - https://www.googleapis.com/auth/cloud-platform
+      headers:
+        X-Goog-User-Project: astana-evaluation
