@@ -6,7 +6,7 @@ dataset_format: agent-format
 
 # Orchestrator Configuration
 orchestrator: agent
-model_config: datasets/model_configs/claude_code_model.yaml
+model_config: datasets/model_configs/claude_code_skills_model.yaml
 simulated_user_model_config: datasets/model_configs/gemini_2.5_pro_model.yaml
 
 runners:
