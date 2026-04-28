@@ -116,6 +116,7 @@ class AgentEvaluator:
         conversation_plan = scenario.get("conversation_plan", "")
         conversation_history = []
         accumulated_tools = []
+        accumulated_skills = []
         last_result = None
 
         session_id = None
@@ -165,6 +166,11 @@ class AgentEvaluator:
                 tools = self.generator.extract_tools(result.stdout)
             accumulated_tools.extend(tools)
 
+            # Extract skills from generator output
+            if isinstance(self.generator, (GeminiCliGenerator, ClaudeCodeGenerator)):
+                skills = self.generator.extract_skills(result.stdout)
+                accumulated_skills.extend(skills)
+
             conversation_history.append({
                 "user": current_prompt,
                 "agent": result.stdout
@@ -190,6 +196,7 @@ class AgentEvaluator:
                 last_result,
                 conversation_history,
                 accumulated_tools,
+                accumulated_skills,
                 eval_result,
                 job_id,
                 metadata
@@ -210,6 +217,7 @@ class AgentEvaluator:
         last_result: subprocess.CompletedProcess,
         conversation_history: List[Dict[str, str]],
         accumulated_tools: List[str],
+        accumulated_skills: List[str],
         eval_result: Any,
         job_id: str,
         metadata: Dict[str, Any]
@@ -230,6 +238,7 @@ class AgentEvaluator:
             "conversation_history": json.dumps(conversation_history, indent=2),
             "scenario": scenario,
             "accumulated_tools": accumulated_tools,
+            "accumulated_skills": accumulated_skills,
             "job_id": job_id,
             "metadata": metadata
         }
