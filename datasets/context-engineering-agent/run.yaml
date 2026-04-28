@@ -1,12 +1,12 @@
 ############################################################
 ### Dataset / Eval Items
 ############################################################
-dataset_config: ../datasets/crema/dataset.json
+dataset_config: ../datasets/context-engineering-agent/dataset.json
 dataset_format: gemini-cli-format
 
 # Orchestrator Configuration
 orchestrator: geminicli
-model_config: ../datasets/crema/model.yaml
+model_config: ../datasets/context-engineering-agent/model.yaml
 simulated_user_model_config: ../datasets/model_configs/gemini_2.5_pro_model.yaml
 
 ############################################################
