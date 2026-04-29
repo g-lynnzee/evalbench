@@ -2,11 +2,12 @@ from typing import Any, List
 import datetime
 import concurrent.futures
 import logging
+import threading
 
 from dataset.evalgeminicliinput import EvalGeminiCliRequest
+from generators.models import get_generator
 from generators.models.gemini_cli import GeminiCliGenerator
 from generators.models.claude_code import ClaudeCodeGenerator
-from util.config import load_yaml_config
 from mp import mprunner
 from work.agentgenwork import AgentGenWork
 from evaluator.simulateduser import SimulatedUser
@@ -23,26 +24,25 @@ class AgentEvaluator:
     ):
         self.config = config
 
-        # Load model config if provided
-        model_config = config
-        if "model_config" in config and isinstance(config["model_config"], str):
-            loaded_config = load_yaml_config(config["model_config"])
-            # Merge main config into loaded config, giving precedence to main config
-            model_config = loaded_config.copy()
-            model_config.update(config)
+        model_config_path = config.get("model_config")
+        if not isinstance(model_config_path, str):
+            raise ValueError(
+                "AgentEvaluator requires `model_config` to be a path to a model YAML")
 
-        generator_type = model_config.get("generator")
-        if generator_type == "gemini_cli":
-            self.agent_version = model_config.get(
-                "gemini_cli_version", config.get("gemini_cli_version"))
-            self.generator = GeminiCliGenerator(model_config)
-        elif generator_type == "claude_code":
-            self.agent_version = model_config.get(
-                "claude_code_version", config.get("claude_code_version", "claude"))
-            self.generator = ClaudeCodeGenerator(model_config)
+        global_models = {
+            "lock": threading.Lock(),
+            "registered_models": {},
+        }
+        self.generator = get_generator(global_models, model_config_path)
+
+        if isinstance(self.generator, ClaudeCodeGenerator):
+            self.agent_version = self.generator.claude_code_version
+        elif isinstance(self.generator, GeminiCliGenerator):
+            self.agent_version = self.generator.gemini_cli_version
         else:
             raise ValueError(
-                f"Unsupported generator type for AgentEvaluator: {generator_type}")
+                f"AgentEvaluator only supports gemini_cli and claude_code generators, "
+                f"got {type(self.generator).__name__}")
 
         runner_config = self.config.get("runners", {})
         self.agent_runners = runner_config.get("agent_runners", 10)

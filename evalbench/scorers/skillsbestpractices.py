@@ -12,7 +12,6 @@ import re
 import json
 from scorers import comparator
 from generators.models import get_generator
-from util.config import load_yaml_config
 from .prompt.skillsbestpractices import SKILLS_BEST_PRACTICES_PROMPT
 
 
@@ -22,7 +21,7 @@ class SkillsBestPractices(comparator.Comparator):
 
     Configuration (under scorers.skills_best_practices in run YAML):
       model_config: path/to/model.yaml   (required)
-      skills_dir: /path/to/skills/dir    (optional; defaults to model config setup.skills_dir)
+      skills_dir: /path/to/skills/dir    (optional; falls back to the Claude Code sandbox path)
 
     The scorer iterates over all activated skills (from accumulated_skills),
     reads each skill's SKILL.md from skills_dir/<skill_name>/SKILL.md,
@@ -31,37 +30,28 @@ class SkillsBestPractices(comparator.Comparator):
 
     def __init__(self, config: dict, global_models):
         self.name = "skills_best_practices"
-        self.model_config = config.get("model_config") or ""
-        if not self.model_config:
+        model_config = config.get("model_config") or ""
+        if not model_config:
             raise ValueError("model_config is required for SkillsBestPractices")
+        self.model = get_generator(global_models, model_config)
 
-        # Try to get skills_dir from config, fallback to model config setup
+        # Resolve where skill SKILL.md files live. Prefer an explicit
+        # `skills_dir` in the scorer config; otherwise fall back to the
+        # Claude Code sandbox path used by the generator.
         self.skills_dir = config.get("skills_dir") or ""
         if not self.skills_dir:
-            model_config_data = load_yaml_config(self.model_config)
-            self.skills_dir = model_config_data.get("setup", {}).get("skills_dir") or ""
-
-        # Fallback to Claude's default plugin/skills directory
-        if not self.skills_dir:
-            home = os.path.expanduser("~")
-            default_skills_dir = os.path.join(home, ".claude", "plugins", "cache")
-            if os.path.isdir(default_skills_dir):
-                self.skills_dir = default_skills_dir
-                logging.info(f"Using default Claude skills directory: {self.skills_dir}")
-
-        # Fallback to fake_home skills directory (.venv/fake_home_claude/.claude/skills)
-        if not self.skills_dir:
-            fake_home_skills = os.path.join(".venv", "fake_home_claude", ".claude", "skills")
+            fake_home_skills = os.path.join(
+                ".venv", "fake_home_claude", ".claude", "skills")
             if os.path.isdir(fake_home_skills):
                 self.skills_dir = os.path.abspath(fake_home_skills)
-                logging.info(f"Using fake_home skills directory: {self.skills_dir}")
+                logging.info(
+                    f"Using fake_home skills directory: {self.skills_dir}")
 
         if not self.skills_dir:
             raise ValueError(
-                "skills_dir not found: not configured in scorer/model config, and Claude default directory ~/.claude/plugins/cache not found"
+                "skills_dir is required: set scorers.skills_best_practices.skills_dir, "
+                "or run the Claude Code generator first so .venv/fake_home_claude/.claude/skills exists."
             )
-
-        self.model = get_generator(global_models, self.model_config)
 
     def _find_skill_md(self, skill_name: str) -> str | None:
         """Resolves the SKILL.md path for a given skill name.
@@ -84,6 +74,35 @@ class SkillsBestPractices(comparator.Comparator):
                         return candidate
         return None
 
+    _CATEGORIES = (
+        "metadata_quality",
+        "conciseness",
+        "progressive_disclosure",
+        "clarity",
+        "content_quality",
+    )
+
+    @staticmethod
+    def _extract_json(response_text: str) -> dict | None:
+        """Parses a JSON object from an LLM response, tolerating Markdown fences
+        and surrounding prose. Returns None if no valid JSON object is found."""
+        text = response_text.strip()
+        fence = re.match(r"^```(?:json)?\s*(.*?)\s*```\s*$", text, re.DOTALL)
+        if fence:
+            text = fence.group(1).strip()
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            pass
+        start = text.find("{")
+        end = text.rfind("}")
+        if start != -1 and end > start:
+            try:
+                return json.loads(text[start:end + 1])
+            except json.JSONDecodeError:
+                return None
+        return None
+
     def _score_skill(self, skill_name: str) -> Tuple[float, str]:
         skill_md_path = self._find_skill_md(skill_name)
         if not skill_md_path:
@@ -104,24 +123,36 @@ class SkillsBestPractices(comparator.Comparator):
             response = self.model.generate(prompt)
             response_text = getattr(response, "stdout", response) if response else ""
             if not isinstance(response_text, str):
-                logging.error(f"Failed to parse LLM response for '{skill_name}': not a string")
-                return 0.0, "Failed to parse LLM response."
+                return 0.0, "LLM response was not a string."
 
             logging.debug(f"Full LLM response for '{skill_name}': {response_text[:500]}")
 
-            score_match = re.search(r"Score:\s*(\d+)", response_text)
-            if score_match:
-                score = float(min(100, max(0, int(score_match.group(1)))))
-                # Extract detailed breakdown sections if present
-                breakdown = []
-                for line in response_text.split('\n'):
-                    if any(x in line for x in ['**Metadata', '**Conciseness', '**Progressive', '**Clarity', '**Content', '**Summary']):
-                        breakdown.append(line)
-                detail_text = '\n'.join(breakdown) if breakdown else response_text[:500]
-                logging.info(f"Score for '{skill_name}': {score:.0f}\nDetails: {detail_text[:200]}")
-                return score, detail_text or response_text
-            logging.error(f"Could not extract numeric score from response for '{skill_name}': {response_text[:200]}")
-            return 0.0, f"Could not extract numeric score from response: {response_text[:200]}"
+            data = self._extract_json(response_text)
+            if not isinstance(data, dict) or "score" not in data:
+                logging.error(
+                    f"Could not parse JSON score from response for '{skill_name}': "
+                    f"{response_text[:200]}")
+                return 0.0, f"Invalid JSON in response: {response_text[:200]}"
+
+            try:
+                score = float(min(100, max(0, int(data["score"]))))
+            except (TypeError, ValueError):
+                return 0.0, f"score field is not an integer: {data.get('score')!r}"
+
+            breakdown_lines = []
+            for cat in self._CATEGORIES:
+                cat_data = data.get(cat) or {}
+                cat_score = cat_data.get("score") if isinstance(cat_data, dict) else None
+                cat_comment = cat_data.get("comment", "") if isinstance(cat_data, dict) else ""
+                if cat_score is not None:
+                    breakdown_lines.append(f"{cat}: {cat_score}/20 — {cat_comment}")
+            summary = data.get("summary", "")
+            if summary:
+                breakdown_lines.append(f"summary: {summary}")
+            detail_text = "\n".join(breakdown_lines) or response_text[:500]
+            logging.info(
+                f"Score for '{skill_name}': {score:.0f}\nDetails: {detail_text[:200]}")
+            return score, detail_text
         except Exception as e:
             logging.error(f"SkillsBestPractices LLM call failed for '{skill_name}': {e}")
             return 0.0, f"Error calling model: {e}"

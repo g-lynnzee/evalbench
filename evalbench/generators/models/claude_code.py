@@ -737,11 +737,11 @@ class ClaudeCodeGenerator(QueryGenerator):
         return scripts
 
     def extract_skills(self, stdout: str) -> list[str]:
-        """Extracts skill names and script invocations from stream output.
+        """Extracts the names of skills activated during the run.
 
-        Returns list of skill execution items:
-        - Skill names when activated
-        - Script names (e.g., list_instances.js) when executed within skills
+        Returns only true skill names (those with a SKILL.md), not the
+        bash scripts a skill may invoke internally. Use `extract_skill_scripts`
+        for trajectory-style script-name extraction.
         """
         output_json = self.parse_response(stdout)
         try:
@@ -752,22 +752,28 @@ class ClaudeCodeGenerator(QueryGenerator):
         installed_skills = self._get_installed_skills()
         items = []
 
-        # Pattern 1: Direct skill tool names
+        # Pattern 1: a skill's tool surfaces directly under its own name
         for tool_name in by_name:
             if tool_name in installed_skills and tool_name not in items:
                 items.append(tool_name)
 
-        # Pattern 2: "Skill" tool calls with skill parameters
+        # Pattern 2: the built-in `Skill` tool with the skill name as a parameter
         skill_tool = by_name.get("Skill", {})
         for params in skill_tool.get("parameters", []):
             name = params.get("skill") or params.get("name") or params.get("skill_name")
             if name and name not in items:
                 items.append(name)
 
-        # Pattern 3: Script names from bash executions
-        items.extend(self._extract_script_names(by_name))
-
         return items
+
+    def extract_skill_scripts(self, stdout: str) -> list[str]:
+        """Extracts skill-script names (e.g. list_instances.js) from Bash invocations."""
+        output_json = self.parse_response(stdout)
+        try:
+            by_name = output_json["stats"]["tools"]["byName"]
+        except (KeyError, TypeError):
+            return []
+        return self._extract_script_names(by_name)
 
     def safe_generate(self, cli_cmd: CLICommand) -> subprocess.CompletedProcess:
         result = self.generate_internal(cli_cmd)

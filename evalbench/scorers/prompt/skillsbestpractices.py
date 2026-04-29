@@ -49,13 +49,16 @@ Score: 20 pts (clear, well-structured), 10-15 pts (generally clear with minor am
 Score: 20 pts (high quality), 10-15 pts (good with minor issues), <10 pts (lacks examples, vague, or contains TODOs)
 
 ### Output Format
-Score: <integer 0-100>
 
-**Metadata Quality: <score>/20** - Does name comply with requirements? Is description clear about what and when?
-**Conciseness: <score>/20** - Is SKILL.md well-scoped (≤500 lines)? Does it assume Claude's intelligence?
-**Progressive Disclosure: <score>/20** - Is content organized into main file + referenced files one level deep?
-**Clarity & Degrees of Freedom: <score>/20** - Are instructions clear about when to be specific vs. flexible?
-**Content Quality: <score>/20** - Are examples concrete? Terminology consistent? Free of TODOs and placeholders?
+Return ONLY a JSON object (no prose, no Markdown fences) with this exact shape:
 
-**Summary:** <2-3 sentences on overall alignment with  best practices. Highlight 1-2 key strengths and most impactful improvement areas.>
+{{
+  "score": <integer 0-100, the sum of the five category scores>,
+  "metadata_quality": {{"score": <0-20>, "comment": "<one sentence>"}},
+  "conciseness": {{"score": <0-20>, "comment": "<one sentence>"}},
+  "progressive_disclosure": {{"score": <0-20>, "comment": "<one sentence>"}},
+  "clarity": {{"score": <0-20>, "comment": "<one sentence>"}},
+  "content_quality": {{"score": <0-20>, "comment": "<one sentence>"}},
+  "summary": "<2-3 sentences on overall alignment with best practices, highlighting 1-2 key strengths and the most impactful improvement areas>"
+}}
 """
