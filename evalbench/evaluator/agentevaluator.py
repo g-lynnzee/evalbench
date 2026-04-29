@@ -2,6 +2,7 @@ from typing import Any, List
 import datetime
 import concurrent.futures
 import logging
+import os
 
 from dataset.evalgeminicliinput import EvalGeminiCliRequest
 from generators.models.gemini_cli import GeminiCliGenerator
@@ -118,6 +119,10 @@ class AgentEvaluator:
         accumulated_tools = []
         last_result = None
 
+        resolved_work_dir = scenario.get("resolved_work_dir")
+        if resolved_work_dir:
+            os.makedirs(resolved_work_dir, exist_ok=True)
+
         session_id = None
         for turn in range(max_turns):
             logging.info(
@@ -136,7 +141,8 @@ class AgentEvaluator:
                         cli=self.agent_version,
                         prompt=current_prompt,
                         env=env,
-                        resume=(turn > 0)
+                        resume=(turn > 0),
+                        cwd=resolved_work_dir
                     )
                 try:
                     result = self.generator.safe_generate(cli_cmd)
