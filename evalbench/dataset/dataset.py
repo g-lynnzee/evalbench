@@ -102,7 +102,7 @@ def load_gemini_cli_json(json_file_path):
     with open(json_file_path, "r") as json_file:
         json_item = json_file.read()
         item = json.loads(json_item)
-        
+
         # Resolve work_dir for scenarios
         scenarios = item.get("scenarios", [])
         dataset_dir = os.path.dirname(json_file_path)
@@ -113,10 +113,10 @@ def load_gemini_cli_json(json_file_path):
                 if not os.path.isabs(work_dir):
                     work_dir = os.path.abspath(os.path.join(dataset_dir, work_dir))
                 scenario["resolved_work_dir"] = work_dir
-        
+
         # Update payload with modified JSON
         updated_json_item = json.dumps(item)
-        
+
         eval_input = EvalGeminiCliRequest(
             id=item.get("id", "0"),
             payload=updated_json_item,
