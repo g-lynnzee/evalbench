@@ -162,6 +162,7 @@ def main():
     print("\n--- Finished ---")
     if any_failures:
         print("🏁 FINAL STATUS: ⚠️ VALUE DEVIATIONS DETECTED IN DATASETS")
+        sys.exit(1)
     else:
         print("🏁 FINAL STATUS: ✅ EXACT DATA VALUES MATCH BASELINE")
 
