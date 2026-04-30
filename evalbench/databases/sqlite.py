@@ -274,7 +274,7 @@ class SQLiteDB(DB):
             raise RuntimeError(f"Could not insert data into database: {error}")
 
     def _format_boolean_value(self, val: str) -> Any:
-        return "true" if val == "true" else "false"
+        return 1 if val == "true" else 0
 
     ######################################################
     #####################################################
