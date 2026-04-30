@@ -59,17 +59,38 @@ def compare_values(df_current, df_truth):
         diffs = []
         if not comparison_mask.all().all():
             for col in common_cols:
-                mismatched_count = (~comparison_mask[col]).sum()
+                is_mismatched = ~comparison_mask[col]
+                mismatched_count = is_mismatched.sum()
                 if mismatched_count > 0:
-                    diffs.append(f"  ❌ {col}: {mismatched_count} rows differed")
+                    # Pick first differing index
+                    idx = is_mismatched.idxmax()
+                    val_truth = str(truth.loc[idx, col])
+                    val_curr = str(curr.loc[idx, col])
+
+                    # Clean and truncate representation for clear log output
+                    val_truth_safe = val_truth.replace('\n', '\\n')
+                    if len(val_truth_safe) > 200:
+                        val_truth_safe = val_truth_safe[:197] + "..."
+                    val_curr_safe = val_curr.replace('\n', '\\n')
+                    if len(val_curr_safe) > 200:
+                        val_curr_safe = val_curr_safe[:197] + "..."
+
+                    msg = (
+                        f"  ❌ {col}: {mismatched_count} rows differed.\n"
+                        f"     [Sample Row {idx} Diff]:\n"
+                        f"       EXP >> {val_truth_safe}\n"
+                        f"       ACT >> {val_curr_safe}"
+                    )
+                    diffs.append(msg)
 
         if match_pct == 100.0:
             return True, "✅ 100% cell values match exactly (ignoring dynamic IDs)."
         else:
-            details = "\n".join(diffs[:5])
+            # Join with slightly cleaner separators for deep nesting
+            details = "\n\n".join(diffs[:5])
             if len(diffs) > 5:
-                details += f"\n  ...and {len(diffs) - 5} other columns."
-            return False, f"⚠️  {match_pct:.1f}% exact match. Diffs found:\n{details}"
+                details += f"\n\n  ...and {len(diffs) - 5} other columns differed."
+            return False, f"⚠️  {match_pct:.1f}% exact match. Details:\n{details}"
     except Exception as e:
         return False, f"⚠️ Encountered error executing parallel comparison matrix: {e}"
 
