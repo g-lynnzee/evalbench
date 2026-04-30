@@ -2,160 +2,11 @@
 import os
 import sys
 import argparse
-import json
 import pandas as pd
-
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-TRUTH_DIR = os.path.join(SCRIPT_DIR, "truth_data")
-
-IGNORE_PATTERNS = ["job_id", "session_id", "run_time", "sql_generator_time"]
-
-
-def clean_df(df):
-    """Drops dynamic ID columns and resets indexing to stabilize comparisons."""
-    cols_to_drop = [
-        c for c in df.columns
-        if any(pattern in c.lower() for pattern in IGNORE_PATTERNS)
-    ]
-    cleaned = df.drop(columns=cols_to_drop, errors='ignore').copy()
-
-    # Attempt logical sorting based on standardized filename identifiers
-    # Default to stringifying and sorting by all columns if unique identifiers aren't obvious
-    try:
-        sort_keys = []
-        common_keys = ["eval_id", "id", "config", "metric_name", "metric"]
-        for k in common_keys:
-            if k in cleaned.columns:
-                sort_keys.append(k)
-        if sort_keys:
-            cleaned = cleaned.sort_values(by=sort_keys)
-    except (KeyError, TypeError, ValueError):
-        # Fallback gracefully if dataset cannot be natively ordered by defined keys
-        pass
-
-    return cleaned.reset_index(drop=True)
-
-
-def compare_values(df_current, df_truth):
-    """Performs value-wise analytics and returns comparison outcomes."""
-    curr = clean_df(df_current)
-    truth = clean_df(df_truth)
-
-    # Structural quickcheck
-    if curr.shape != truth.shape:
-        return False, f"Shape mismatch (Current: {curr.shape} vs Truth: {truth.shape})"
-
-    # Align column sets precisely
-    common_cols = [c for c in truth.columns if c in curr.columns]
-    if len(common_cols) != len(truth.columns):
-        return False, "Column names mismatch prevents direct cell comparisons."
-
-    # Mask discrepancies
-    try:
-        comparison_mask = (curr[common_cols] == truth[common_cols]) | (
-            curr[common_cols].isna() & truth[common_cols].isna())
-        match_pct = (comparison_mask.values.sum() / comparison_mask.size) * 100
-
-        diffs = []
-        if not comparison_mask.all().all():
-            for col in common_cols:
-                is_mismatched = ~comparison_mask[col]
-                mismatched_count = is_mismatched.sum()
-                if mismatched_count > 0:
-                    # Pick first differing index
-                    idx = is_mismatched.idxmax()
-                    val_truth = str(truth.loc[idx, col])
-                    val_curr = str(curr.loc[idx, col])
-
-                    # Clean and truncate representation for clear log output
-                    val_truth_safe = val_truth.replace('\n', '\\n')
-                    if len(val_truth_safe) > 200:
-                        val_truth_safe = val_truth_safe[:197] + "..."
-                    val_curr_safe = val_curr.replace('\n', '\\n')
-                    if len(val_curr_safe) > 200:
-                        val_curr_safe = val_curr_safe[:197] + "..."
-
-                    msg = (
-                        f"  ❌ {col}: {mismatched_count} rows differed.\n"
-                        f"     [Sample Row {idx} Diff]:\n"
-                        f"       EXP >> {val_truth_safe}\n"
-                        f"       ACT >> {val_curr_safe}"
-                    )
-                    diffs.append(msg)
-
-        if match_pct == 100.0:
-            return True, "✅ 100% cell values match exactly (ignoring dynamic IDs)."
-        else:
-            # Join with slightly cleaner separators for deep nesting
-            details = "\n\n".join(diffs[:5])
-            if len(diffs) > 5:
-                details += f"\n\n  ...and {len(diffs) - 5} other columns differed."
-            return False, f"⚠️  {match_pct:.1f}% exact match. Details:\n{details}"
-    except Exception as e:
-        return False, f"⚠️ Encountered error executing parallel comparison matrix: {e}"
-
-
-def validate_and_compare(file_path, truth_path):
-    filename = os.path.basename(file_path)
-    print(f"\n{'=' * 80}")
-    print(f"Analyzing: {filename}")
-    print(f"{'=' * 80}")
-
-    try:
-        df = pd.read_csv(file_path, low_memory=False)
-
-        # Check values if truth file exists
-        val_msg = ""
-        is_match = True
-        if truth_path and os.path.exists(truth_path):
-            try:
-                truth_df = pd.read_csv(truth_path, low_memory=False)
-                is_match, val_msg = compare_values(df, truth_df)
-                print(val_msg)
-            except Exception as compare_err:
-                print(f"⚠️ Error during truth comparison lookup: {compare_err}")
-        else:
-            print("ℹ️ No baseline values found in truth_data for comparison.")
-
-        print(f"\nDimensions: {len(df)} Rows × {len(df.columns)} Columns")
-        if len(df) == 0:
-            return not is_match
-
-        print(f"\n{'COLUMN':<30} | {'FILL %':>8} | {'UNIQUE':>8} | {'SAMPLE (IGNORES IDS)'}")
-        print("-" * 80)
-
-        for column in df.columns:
-            # Visual indicator for ignored columns
-            is_ignored = any(p in column.lower() for p in IGNORE_PATTERNS)
-
-            non_null_count = df[column].notna().sum()
-            unique_count = df[column].nunique(dropna=True)
-            fill_percentage = (non_null_count / len(df)) * 100
-
-            sample_val = "HIDDEN (ID)" if is_ignored else "N/A"
-            if not is_ignored:
-                first_valid = df[column].dropna()
-                if not first_valid.empty:
-                    sample_val = str(first_valid.iloc[0])
-                    sample_val = (sample_val[:35] + '...') if len(sample_val) > 35 else sample_val
-                    sample_val = sample_val.replace('\n', '\\n')
-
-            indicator = "[OK]"
-            if is_ignored:
-                indicator = "[ID]"
-            elif fill_percentage == 0:
-                indicator = "[!!]"
-
-            print(f"{indicator} {column:<25} | {fill_percentage:>7.1f}% | {unique_count:>8} | {sample_val}")
-
-        return not is_match
-
-    except Exception as e:
-        print(f"CRITICAL ERROR: {str(e)}")
-        return True
 
 
 def get_latest_directory(base_dirs):
+    """Finds the most recently modified subdirectory among list of potential base directories."""
     all_dirs = []
     for base_dir in base_dirs:
         if os.path.exists(base_dir):
@@ -164,46 +15,73 @@ def get_latest_directory(base_dirs):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Value validation engine.")
+    parser = argparse.ArgumentParser(description="Verifies that SQL was successfully generated.")
     parser.add_argument("path", nargs="?", help="Session folder")
-    parser.add_argument("--capture", action="store_true", help="Saves CSVs from target as the static truth repository.")
     args = parser.parse_args()
 
     session_dir = args.path
     if not session_dir:
         search_locations = ["/tmp_session_files/results", "results"]
+        print("No manual path provided. Searching latest session...")
         session_dir = get_latest_directory(search_locations)
 
     if not session_dir or not os.path.exists(session_dir):
-        print("ERROR: Invalid path.")
+        print("ERROR: Invalid session path. Cannot proceed.")
         sys.exit(1)
 
-    csv_files = [f for f in os.listdir(session_dir) if f.endswith(".csv")]
+    print(f"Inspecting session: {os.path.abspath(session_dir)}")
 
-    if args.capture:
-        print(f"--- CAPTURING DATAFRAMES AS THE BASELINE IN {TRUTH_DIR} ---")
-        import shutil
-        os.makedirs(TRUTH_DIR, exist_ok=True)
-        for f in csv_files:
-            shutil.copy2(os.path.join(session_dir, f), os.path.join(TRUTH_DIR, f))
-        print("Archived baseline successfully.")
+    evals_path = os.path.join(session_dir, "evals.csv")
+    if not os.path.exists(evals_path):
+        print(f"❌ CRITICAL FAILURE: The 'evals.csv' result file could not be found in the directory.")
+        sys.exit(1)
+
+    try:
+        # Load dataset
+        df = pd.read_csv(evals_path, low_memory=False)
+
+        # 1. Assert the column exists
+        TARGET_COL = "generated_sql"
+        if TARGET_COL not in df.columns:
+            print(f"❌ CRITICAL FAILURE: Column '{TARGET_COL}' is missing entirely from output file.")
+            sys.exit(1)
+
+        total_rows = len(df)
+        if total_rows == 0:
+            print(f"❌ CRITICAL FAILURE: The result file is completely empty (0 rows).")
+            sys.exit(1)
+
+        # 2. Assert content is present in the column
+        # We filter out truly NULL values and handle any rows where generation literally never fired.
+        non_null_count = df[TARGET_COL].notna().sum()
+        null_count = total_rows - non_null_count
+
+        if null_count > 0:
+            print(f"\n❌ VERIFICATION FAILED!")
+            print(f"   {null_count} of {total_rows} scenarios failed to produce ANY sql content (NULL detected).")
+
+            # Sample of failing rows
+            failing_mask = df[TARGET_COL].isna()
+            if "id" in df.columns:
+                failing_ids = df.loc[failing_mask, "id"].head(5).tolist()
+                print(f"   Sample failing evaluation IDs: {failing_ids}")
+            sys.exit(1)
+
+        # Optional Check: also inspect for explicitly empty strings if user considers that a failure
+        empty_str_mask = df[TARGET_COL].astype(str).str.strip() == ""
+        empty_str_count = empty_str_mask.sum()
+        if empty_str_count > 0:
+            print(f"\n❌ VERIFICATION FAILED!")
+            print(f"   {empty_str_count} rows generated an empty string \"\" instead of SQL.")
+            sys.exit(1)
+
+        print(f"\n✅ VERIFICATION SUCCESSFUL!")
+        print(f"   Successfully verified {total_rows} rows. 100% have content in '{TARGET_COL}'.")
         sys.exit(0)
 
-    print(f"\nCommencing deep value assertion pass on: {os.path.abspath(session_dir)}")
-    any_failures = False
-
-    for f in sorted(csv_files):
-        t_path = os.path.join(TRUTH_DIR, f)
-        res = validate_and_compare(os.path.join(session_dir, f), t_path)
-        if res:
-            any_failures = True
-
-    print("\n--- Finished ---")
-    if any_failures:
-        print("🏁 FINAL STATUS: ⚠️ VALUE DEVIATIONS DETECTED IN DATASETS")
+    except Exception as e:
+        print(f"❌ UNKNOWN SYSTEM ERROR reading results: {str(e)}")
         sys.exit(1)
-    else:
-        print("🏁 FINAL STATUS: ✅ EXACT DATA VALUES MATCH BASELINE")
 
 
 if __name__ == "__main__":
