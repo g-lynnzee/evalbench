@@ -76,6 +76,6 @@ def run_script(script_path: str, session_dir: str, label: str = "script") -> int
         try:
             with open(log_file_path, "a", encoding="utf-8") as log_file:
                 log_file.write(f"\nFATAL SYSTEM ERROR: {error_msg}\n")
-        except Exception:
-            pass
+        except Exception as fallback_err:
+            logging.debug("Failed to record fatal error to fallback log: %s", fallback_err)
         return -1
