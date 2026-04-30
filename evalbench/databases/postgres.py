@@ -1,4 +1,5 @@
 from sqlalchemy.pool import NullPool
+import sqlalchemy
 from sqlalchemy import text, MetaData
 from sqlalchemy.engine.base import Connection
 import logging
