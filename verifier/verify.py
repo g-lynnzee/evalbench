@@ -27,7 +27,8 @@ def clean_df(df):
                 sort_keys.append(k)
         if sort_keys:
             cleaned = cleaned.sort_values(by=sort_keys)
-    except:
+    except (KeyError, TypeError, ValueError):
+        # Fallback gracefully if dataset cannot be natively ordered by defined keys
         pass
         
     return cleaned.reset_index(drop=True)
