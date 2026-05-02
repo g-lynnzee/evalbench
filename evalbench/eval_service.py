@@ -229,8 +229,9 @@ class EvalServicer(eval_service_pb2_grpc.EvalServiceServicer):
                 cand = loaded_config.get("dataset_config", "Unknown")
                 g3_idx = cand.find("google3/")
                 display_config = cand[g3_idx:] if g3_idx != -1 else cand
-            except Exception:
-                pass
+            except Exception as e_ctx:
+                # Best effort retrieval of metadata for tracing. Do not mask original fault.
+                logging.debug(f"Unable to determine active dataset path for log context: {e_ctx}")
 
             logging.exception(f"gRPC Eval failed for config/dataset '{display_config}': {e}")
             raise
