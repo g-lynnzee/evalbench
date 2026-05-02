@@ -11,6 +11,7 @@ class GcsReporter(Reporter):
     def __init__(self, reporting_config, job_id, run_time):
         super().__init__(reporting_config, job_id, run_time)
         self.bucket_name = reporting_config.get("bucket")
+        logging.info(f"GcsReporter: Initializing with bucket={self.bucket_name}")
         self.client = storage.Client()
 
         # If running via eval_server.py (gRPC), force path prefix
@@ -23,6 +24,8 @@ class GcsReporter(Reporter):
         # We only care about zipping working directories during EVALS storage
         if type != STORETYPE.EVALS:
             return
+
+        logging.info(f"GcsReporter.store: processing type={type}, results len={len(results) if results is not None else 0}")
 
         if not self.bucket_name:
             logging.warning("GCS bucket name not provided in config.")
@@ -38,6 +41,8 @@ class GcsReporter(Reporter):
             else:
                 logging.warning("No working_dir or fake_home in results dataframe.")
                 return
+
+        logging.info(f"GcsReporter.store: results columns: {results.columns.tolist()}")
 
         bucket = self.client.bucket(self.bucket_name)
         unique_dirs = results["working_dir"].dropna().unique()
@@ -61,6 +66,7 @@ class GcsReporter(Reporter):
                 self._zip_and_upload(working_dir, eval_id, bucket)
 
     def _zip_and_upload(self, src_dir, eval_id, bucket):
+        logging.info(f"GcsReporter._zip_and_upload: src_dir={src_dir}, eval_id={eval_id}")
         if not os.path.exists(src_dir):
             logging.warning(f"Source directory {src_dir} does not exist.")
             return
@@ -71,12 +77,15 @@ class GcsReporter(Reporter):
         try:
             with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
                 for root, dirs, files in os.walk(src_dir):
+                    # Exclude heavy cache directories
+                    dirs[:] = [d for d in dirs if d not in ['.npm', '.cache']]
                     for file in files:
                         file_path = os.path.join(root, file)
                         arcname = os.path.relpath(file_path, src_dir)
                         zipf.write(file_path, arcname)
 
             blob_name = f"{self.path_prefix}/{self.job_id}/{eval_id}.zip"
+            logging.info(f"GcsReporter._zip_and_upload: Zip created. Size={os.path.getsize(zip_path)} bytes. Uploading to gs://{self.bucket_name}/{blob_name} ...")
             blob = bucket.blob(blob_name)
             blob.upload_from_filename(zip_path)
             logging.info(f"Uploaded {src_dir} to gs://{self.bucket_name}/{blob_name}")
