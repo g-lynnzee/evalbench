@@ -112,10 +112,12 @@ class TestEvaluatorRobustness(unittest.TestCase):
             "total": 10,
             "lock": MagicMock()}
 
+        q = Queue()
+        q.put(MagicMock())
         with self.assertLogs('root', level='ERROR') as cm:
             self.evaluator.evaluate(
                 dataset=[MagicMock()],
-                db_queue=MagicMock(),
+                db_queue=q,
                 prompt_generator=MagicMock(),
                 model_generator=MagicMock(),
                 job_id="test",
@@ -123,6 +125,7 @@ class TestEvaluatorRobustness(unittest.TestCase):
                 progress_reporting=progress_reporting,
                 global_models={}
             )
+
 
         self.assertTrue(any(
             "Abandoning 1 hung futures after 0.01s timeout" in output for output in cm.output))
@@ -159,10 +162,12 @@ class TestEvaluatorRobustness(unittest.TestCase):
             "total": 10,
             "lock": MagicMock()}
 
+        q = Queue()
+        q.put(MagicMock())
         with self.assertLogs('root', level='ERROR') as cm:
             self.evaluator.evaluate(
                 dataset=[MagicMock()],
-                db_queue=MagicMock(),
+                db_queue=q,
                 prompt_generator=MagicMock(),
                 model_generator=MagicMock(),
                 job_id="test",
@@ -170,6 +175,7 @@ class TestEvaluatorRobustness(unittest.TestCase):
                 progress_reporting=progress_reporting,
                 global_models={}
             )
+
 
         self.assertTrue(
             any("Promptgen future error: Worker crashed" in output for output in cm.output))
