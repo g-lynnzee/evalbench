@@ -24,7 +24,6 @@ jobs:
         echo "$HOME/.local/bin" >> $GITHUB_PATH
     - name: Run tests
       run: |
-        uv run --with pytest pytest evalbench/test -vv --ignore evalbench/test/spanner_test.py --ignore evalbench/test/bigtable_test.py
+        uv run --with pytest pytest evalbench/test -vv
       env:
         PYTHONPATH: ${{ github.workspace }}/evalbench:${{ github.workspace }}
-        SKIP_CLOUD_TESTS: 'true'
