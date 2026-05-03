@@ -6,8 +6,7 @@ steps:
   - '-c'
   - |
     curl -LsSf https://astral.sh/uv/install.sh | sh
-    export PATH="/root/.local/bin:$$PATH"
-    uv run --with pytest pytest evalbench/test -vv
+    $$HOME/.local/bin/uv run --with pytest pytest evalbench/test -vv
   env:
   - 'PYTHONPATH=evalbench:.'
 - name: 'gcr.io/cloud-builders/docker'
