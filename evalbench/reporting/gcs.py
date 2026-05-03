@@ -1,31 +1,61 @@
 import os
+import tempfile
 import zipfile
 import logging
-import sys
-import tempfile
-from reporting.report import Reporter, STORETYPE
+from typing import Any
+
 from google.cloud import storage
 import pandas as pd
 
+from reporting.report import Reporter, STORETYPE
+
+
 class GcsReporter(Reporter):
-    def __init__(self, reporting_config, job_id, run_time):
+    """Reporter that zips and uploads scenario working directories to GCS."""
+
+    _DEFAULT_PATH_PREFIX = "results"
+    _EXCLUDED_DIRS = frozenset({".venv", "__pycache__", "node_modules", "venv"})
+
+    def __init__(
+        self,
+        reporting_config: dict[str, Any] | None,
+        job_id: str,
+        run_time: Any,
+    ):
+        """Initializes the GcsReporter.
+
+        Args:
+            reporting_config: Configuration dictionary for reporting.
+            job_id: Unique identifier for the current evaluation job.
+            run_time: Timestamp of the run.
+        """
         super().__init__(reporting_config, job_id, run_time)
-        self.bucket_name = reporting_config.get("bucket")
-        logging.info(f"GcsReporter: Initializing with bucket={self.bucket_name}")
+        self.bucket_name: str | None = (
+            reporting_config.get("bucket") if reporting_config else None
+        )
+        logging.info(
+            "GcsReporter: Initializing with bucket=%s", self.bucket_name
+        )
         self.client = storage.Client()
+        self.path_prefix: str = self.config.get(
+            "path_prefix", self._DEFAULT_PATH_PREFIX
+        )
 
-        # If running via eval_server.py (gRPC), force path prefix
-        if sys.argv[0].endswith("eval_server.py"):
-            self.path_prefix = "tmp_session_files"
-        else:
-            self.path_prefix = self.config.get("path_prefix", "results")
+    def store(self, results: pd.DataFrame, type: STORETYPE) -> None:
+        """Zips and uploads working directories for completed evaluations.
 
-    def store(self, results, type: STORETYPE):
-        # We only care about zipping working directories during EVALS storage
+        Args:
+            results: DataFrame containing evaluation results.
+            type: The type of data being stored (only EVALS is processed).
+        """
         if type != STORETYPE.EVALS:
             return
 
-        logging.info(f"GcsReporter.store: processing type={type}, results len={len(results) if results is not None else 0}")
+        logging.info(
+            "GcsReporter.store: processing type=%s, results len=%d",
+            type,
+            len(results) if results is not None else 0,
+        )
 
         if not self.bucket_name:
             logging.warning("GCS bucket name not provided in config.")
@@ -35,66 +65,91 @@ class GcsReporter(Reporter):
             logging.warning("Results is not a DataFrame, skipping GCS upload.")
             return
 
-        if "working_dir" not in results.columns:
-            if "fake_home" in results.columns:
-                results = results.rename(columns={"fake_home": "working_dir"})
-            else:
-                logging.warning("No working_dir or fake_home in results dataframe.")
-                return
-
-        logging.info(f"GcsReporter.store: results columns: {results.columns.tolist()}")
-
-        bucket = self.client.bucket(self.bucket_name)
-        unique_dirs = results["working_dir"].dropna().unique()
-
-        if len(unique_dirs) == 1:
-            working_dir = unique_dirs[0]
-            if len(results) > 1:
-                logging.info(f"Detected shared working directory: {working_dir}")
-                self._zip_and_upload(working_dir, "shared_working_dir", bucket)
-            else:
-                eval_id = results["eval_id"].iloc[0]
-                self._zip_and_upload(working_dir, eval_id, bucket)
-        else:
-            for working_dir in unique_dirs:
-                rows = results[results["working_dir"] == working_dir]
-                if len(rows) > 1:
-                    eval_id = f"shared_{rows['eval_id'].iloc[0]}"
-                else:
-                    eval_id = rows["eval_id"].iloc[0]
-
-                self._zip_and_upload(working_dir, eval_id, bucket)
-
-    def _zip_and_upload(self, src_dir, eval_id, bucket):
-        logging.info(f"GcsReporter._zip_and_upload: src_dir={src_dir}, eval_id={eval_id}")
-        if not os.path.exists(src_dir):
-            logging.warning(f"Source directory {src_dir} does not exist.")
+        if "fake_home" not in results.columns:
+            logging.warning("No fake_home in results dataframe.")
             return
 
-        with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as tmp_file:
-            zip_path = tmp_file.name
+        if "eval_id" not in results.columns:
+            logging.warning("No eval_id in results dataframe.")
+            return
 
+        logging.info(
+            "GcsReporter.store: results columns: %s", results.columns.tolist()
+        )
+
+        bucket = self.client.bucket(self.bucket_name)
+        unique_dirs = results["fake_home"].dropna().unique()
+
+        if len(unique_dirs) == 1:
+            fake_home = unique_dirs[0]
+            self._zip_and_upload(fake_home, "fake_home", bucket)
+        else:
+            for fake_home in unique_dirs:
+                rows = results[results["fake_home"] == fake_home]
+                eval_id = rows["eval_id"].iloc[0]
+                self._zip_and_upload(fake_home, eval_id, bucket)
+
+    def _zip_and_upload(
+        self, src_dir: str, eval_id: str, bucket: storage.Bucket
+    ) -> None:
+        """Zips the contents of src_dir and uploads it to the GCS bucket.
+
+        Args:
+            src_dir: The local directory to zip.
+            eval_id: The evaluation ID used for the GCS object name.
+            bucket: The GCS bucket to upload to.
+        """
+        logging.info(
+            "GcsReporter._zip_and_upload: src_dir=%s, eval_id=%s",
+            src_dir,
+            eval_id,
+        )
+        if not os.path.exists(src_dir):
+            logging.warning("Source directory %s does not exist.", src_dir)
+            return
+
+        zip_path: str | None = None
         try:
-            with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            with tempfile.NamedTemporaryFile(
+                suffix=".zip", delete=False
+            ) as tmp_file:
+                zip_path = tmp_file.name
+
+            with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
                 for root, dirs, files in os.walk(src_dir):
                     # Exclude hidden directories and common heavy/cache directories
-                    dirs[:] = [d for d in dirs if not d.startswith('.') and d not in ['__pycache__', 'node_modules', 'venv']]
+                    dirs[:] = [
+                        d
+                        for d in dirs
+                        if not d.startswith(".")
+                        and d not in self._EXCLUDED_DIRS
+                    ]
                     for file in files:
                         # Exclude hidden files for privacy and size
-                        if file.startswith('.'):
+                        if file.startswith("."):
                             continue
                         file_path = os.path.join(root, file)
                         arcname = os.path.relpath(file_path, src_dir)
                         zipf.write(file_path, arcname)
 
             blob_name = f"{self.path_prefix}/{self.job_id}/{eval_id}.zip"
-            logging.info(f"GcsReporter._zip_and_upload: Zip created. Size={os.path.getsize(zip_path)} bytes. Uploading to gs://{self.bucket_name}/{blob_name} ...")
+            logging.info(
+                "GcsReporter._zip_and_upload: Zip created. Size=%d bytes. Uploading to gs://%s/%s ...",
+                os.path.getsize(zip_path),
+                self.bucket_name,
+                blob_name,
+            )
             blob = bucket.blob(blob_name)
             blob.upload_from_filename(zip_path)
-            logging.info(f"Uploaded {src_dir} to gs://{self.bucket_name}/{blob_name}")
+            logging.info(
+                "Uploaded %s to gs://%s/%s",
+                src_dir,
+                self.bucket_name,
+                blob_name,
+            )
 
-        except Exception as e:
-            logging.error(f"Failed to upload {src_dir} to GCS: {e}")
+        except Exception:
+            logging.exception("Failed to upload %s to GCS", src_dir)
         finally:
-            if os.path.exists(zip_path):
+            if zip_path and os.path.exists(zip_path):
                 os.remove(zip_path)

@@ -22,7 +22,7 @@ class TestGcsReporter(unittest.TestCase):
     @patch('reporting.gcs.storage.Client')
     def test_store_not_evals(self, mock_storage_client):
         reporter = GcsReporter(self.reporting_config, self.job_id, self.run_time)
-        results = pd.DataFrame({"working_dir": ["/tmp/dir1"], "eval_id": ["1"]})
+        results = pd.DataFrame({"fake_home": ["/tmp/dir1"], "eval_id": ["1"]})
         reporter.store(results, STORETYPE.CONFIGS)
         # Should return early and not call bucket
         mock_storage_client.return_value.bucket.assert_not_called()
@@ -30,9 +30,17 @@ class TestGcsReporter(unittest.TestCase):
     @patch('reporting.gcs.storage.Client')
     def test_store_missing_bucket(self, mock_storage_client):
         reporter = GcsReporter({}, self.job_id, self.run_time)
-        results = pd.DataFrame({"working_dir": ["/tmp/dir1"], "eval_id": ["1"]})
+        results = pd.DataFrame({"fake_home": ["/tmp/dir1"], "eval_id": ["1"]})
         reporter.store(results, STORETYPE.EVALS)
         mock_storage_client.return_value.bucket.assert_not_called()
+
+    @patch('reporting.gcs.storage.Client')
+    def test_store_missing_eval_id(self, mock_storage_client):
+        reporter = GcsReporter(self.reporting_config, self.job_id, self.run_time)
+        results = pd.DataFrame({"fake_home": ["/tmp/dir1"]})
+        reporter.store(results, STORETYPE.EVALS)
+        mock_storage_client.return_value.bucket.assert_not_called()
+
 
     @patch('reporting.gcs.os.path.getsize')
     @patch('reporting.gcs.storage.Client')
@@ -58,7 +66,7 @@ class TestGcsReporter(unittest.TestCase):
         reporter = GcsReporter(self.reporting_config, self.job_id, self.run_time)
 
         results = pd.DataFrame({
-            "working_dir": ["/tmp/dir1", "/tmp/dir2"],
+            "fake_home": ["/tmp/dir1", "/tmp/dir2"],
             "eval_id": ["eval1", "eval2"]
         })
 
@@ -94,7 +102,7 @@ class TestGcsReporter(unittest.TestCase):
         reporter = GcsReporter(self.reporting_config, self.job_id, self.run_time)
 
         results = pd.DataFrame({
-            "working_dir": ["/tmp/dir1", "/tmp/dir1"],
+            "fake_home": ["/tmp/dir1", "/tmp/dir1"],
             "eval_id": ["eval1", "eval2"]
         })
 
@@ -102,7 +110,7 @@ class TestGcsReporter(unittest.TestCase):
 
         # Verify upload (should be only 1 upload for shared dir)
         self.assertEqual(mock_bucket.blob.call_count, 1)
-        mock_bucket.blob.assert_called_once_with("results/test-job-id/shared_working_dir.zip")
+        mock_bucket.blob.assert_called_once_with("results/test-job-id/fake_home.zip")
         mock_blob.upload_from_filename.assert_called_once_with("/tmp/temp.zip")
 
 if __name__ == '__main__':
