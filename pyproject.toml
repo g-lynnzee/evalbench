@@ -46,6 +46,7 @@ dependencies = [
     "google-cloud-geminidataanalytics>=0.11.0",
     "google-cloud-firestore",
     "google-cloud-iam",
+    "google-cloud-storage",
 ]
 
 [tool.setuptools.packages.find]
@@ -59,6 +60,7 @@ members = [
 [dependency-groups]
 dev = [
     "pycodestyle>=2.14.0",
+    "pytest",
 ]
 
 [[tool.uv.index]]

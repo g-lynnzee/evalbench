@@ -77,9 +77,12 @@ class GcsReporter(Reporter):
         try:
             with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
                 for root, dirs, files in os.walk(src_dir):
-                    # Exclude heavy cache directories
-                    dirs[:] = [d for d in dirs if d not in ['.npm', '.cache']]
+                    # Exclude hidden directories and common heavy/cache directories
+                    dirs[:] = [d for d in dirs if not d.startswith('.') and d not in ['__pycache__', 'node_modules', 'venv']]
                     for file in files:
+                        # Exclude hidden files for privacy and size
+                        if file.startswith('.'):
+                            continue
                         file_path = os.path.join(root, file)
                         arcname = os.path.relpath(file_path, src_dir)
                         zipf.write(file_path, arcname)

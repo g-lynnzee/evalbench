@@ -34,13 +34,15 @@ class TestGcsReporter(unittest.TestCase):
         reporter.store(results, STORETYPE.EVALS)
         mock_storage_client.return_value.bucket.assert_not_called()
 
+    @patch('reporting.gcs.os.path.getsize')
     @patch('reporting.gcs.storage.Client')
     @patch('reporting.gcs.os.path.exists')
     @patch('reporting.gcs.zipfile.ZipFile')
     @patch('reporting.gcs.tempfile.NamedTemporaryFile')
     @patch('reporting.gcs.os.remove')
-    def test_store_isolated(self, mock_remove, mock_tempfile, mock_zipfile, mock_exists, mock_storage_client):
+    def test_store_isolated(self, mock_remove, mock_tempfile, mock_zipfile, mock_exists, mock_storage_client, mock_getsize):
         mock_exists.return_value = True
+        mock_getsize.return_value = 1024
 
         # Mock temp file
         mock_temp = MagicMock()
@@ -68,13 +70,15 @@ class TestGcsReporter(unittest.TestCase):
         mock_bucket.blob.assert_any_call("results/test-job-id/eval2.zip")
         self.assertEqual(mock_blob.upload_from_filename.call_count, 2)
 
+    @patch('reporting.gcs.os.path.getsize')
     @patch('reporting.gcs.storage.Client')
     @patch('reporting.gcs.os.path.exists')
     @patch('reporting.gcs.zipfile.ZipFile')
     @patch('reporting.gcs.tempfile.NamedTemporaryFile')
     @patch('reporting.gcs.os.remove')
-    def test_store_shared(self, mock_remove, mock_tempfile, mock_zipfile, mock_exists, mock_storage_client):
+    def test_store_shared(self, mock_remove, mock_tempfile, mock_zipfile, mock_exists, mock_storage_client, mock_getsize):
         mock_exists.return_value = True
+        mock_getsize.return_value = 1024
 
         # Mock temp file
         mock_temp = MagicMock()
