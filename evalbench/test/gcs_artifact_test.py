@@ -1,9 +1,7 @@
 import unittest
 from unittest.mock import patch, MagicMock
-import os
 import pandas as pd
 import datetime
-import sys
 from reporting.report import STORETYPE
 from reporting.gcs_artifact import GcsReporter
 
