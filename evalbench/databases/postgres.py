@@ -36,6 +36,8 @@ GRANT USAGE ON SCHEMA public TO {DML_USERNAME};
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {DML_USERNAME};
 """
 
+CONNECTOR = Connector()
+
 
 class PGDB(DB):
     #####################################################
@@ -46,7 +48,6 @@ class PGDB(DB):
 
     def __init__(self, db_config):
         super().__init__(db_config)
-        self.connector = Connector()
 
         # Auto-deduce use_cloud_sql: format is PROJECT:REGION:INSTANCE (2 colons)
         self.use_cloud_sql = db_config.get("use_cloud_sql")
@@ -62,7 +63,7 @@ class PGDB(DB):
 
         def get_conn():
             # Only used for Cloud SQL Connector path
-            conn = self.connector.connect(
+            conn = CONNECTOR.connect(
                 self.db_path,
                 "pg8000",
                 user=self.username,
@@ -111,7 +112,6 @@ class PGDB(DB):
     def close_connections(self):
         try:
             self.engine.dispose()
-            self.connector.close()
         except Exception:
             logging.warning(
                 f"Failed to close connections. This may result in idle unused connections."
