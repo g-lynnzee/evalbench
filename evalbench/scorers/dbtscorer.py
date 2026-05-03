@@ -52,6 +52,7 @@ class DbtBaseScorer(comparator.Comparator):
                     parsed = json.loads(generated_eval_result)
                     search_root = parsed.get("fake_home") or "."
                 except json.JSONDecodeError:
+                    # Fallback to '.' if the generated_eval_result is not valid JSON.
                     pass
 
             project_dir = self._find_project_dir(search_root)
@@ -84,7 +85,6 @@ class DbtBaseScorer(comparator.Comparator):
             except subprocess.TimeoutExpired:
                 cmd_str = " ".join(full_command)
                 return 0.0, f"FAIL: '{cmd_str}' timed out after 300 seconds."
-
 
             cmd_str = " ".join(full_command)
             if result.returncode == 0:

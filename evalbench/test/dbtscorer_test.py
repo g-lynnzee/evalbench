@@ -1,7 +1,6 @@
 """Unit tests for dbt scorers."""
 
 import json
-import os
 import subprocess
 import unittest
 from unittest.mock import MagicMock, patch

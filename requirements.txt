@@ -39,4 +39,3 @@ google-cloud-storage
 dbt-core
 dbt-bigquery
 dbt-postgres
-dbt-duckdb

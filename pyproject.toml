@@ -50,7 +50,6 @@ dependencies = [
     "dbt-core",
     "dbt-bigquery",
     "dbt-postgres",
-    "dbt-duckdb",
 ]
 
 [tool.setuptools.packages.find]
