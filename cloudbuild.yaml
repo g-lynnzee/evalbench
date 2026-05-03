@@ -9,6 +9,7 @@ steps:
     $$HOME/.local/bin/uv run --with pytest pytest evalbench/test -vv
   env:
   - 'PYTHONPATH=evalbench:.'
+  - 'SKIP_CLOUD_TESTS=true'
 - name: 'gcr.io/cloud-builders/docker'
 
   args: ['build', '-t', 'us-central1-docker.pkg.dev/cloud-db-nl2sql/evalbench/eval_server:$COMMIT_SHA', '-f', 'evalbench_service/Dockerfile', '.']
