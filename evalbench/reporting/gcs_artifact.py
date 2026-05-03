@@ -11,7 +11,20 @@ from reporting.report import Reporter, STORETYPE
 
 
 class GcsReporter(Reporter):
-    """Reporter that zips and uploads scenario working directories to GCS."""
+    """Reporter that zips and uploads scenario working directories to GCS.
+
+    This reporter only processes `STORETYPE.EVALS` data. It captures the
+    sandboxed workspace (`fake_home`) of an agent evaluation and uploads it
+    as a zip file.
+
+    Example `run_config.yaml` usage:
+    ```yaml
+    reporting:
+      gcs_artifacts:
+        bucket: 'my-evaluation-artifacts-bucket'
+        path_prefix: 'optional_prefix'  # Defaults to 'results'
+    ```
+    """
 
     _DEFAULT_PATH_PREFIX = "results"
     _EXCLUDED_DIRS = frozenset({".venv", "__pycache__", "node_modules", "venv"})
