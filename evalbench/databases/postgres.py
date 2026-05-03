@@ -36,6 +36,7 @@ GRANT USAGE ON SCHEMA public TO {DML_USERNAME};
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {DML_USERNAME};
 """
 
+
 class PGDB(DB):
     #####################################################
     #####################################################

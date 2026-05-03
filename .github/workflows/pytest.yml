@@ -26,5 +26,5 @@ jobs:
       run: |
         uv run --with pytest pytest evalbench/test -vv --ignore evalbench/test/spanner_test.py --ignore evalbench/test/bigtable_test.py
       env:
-        PYTHONPATH: evalbench:.
+        PYTHONPATH: ${{ github.workspace }}/evalbench:${{ github.workspace }}
         SKIP_CLOUD_TESTS: 'true'
