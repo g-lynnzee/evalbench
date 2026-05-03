@@ -126,7 +126,6 @@ class TestEvaluatorRobustness(unittest.TestCase):
                 global_models={}
             )
 
-
         self.assertTrue(any(
             "Abandoning 1 hung futures after 0.01s timeout" in output for output in cm.output))
 
@@ -175,7 +174,6 @@ class TestEvaluatorRobustness(unittest.TestCase):
                 progress_reporting=progress_reporting,
                 global_models={}
             )
-
 
         self.assertTrue(
             any("Promptgen future error: Worker crashed" in output for output in cm.output))
