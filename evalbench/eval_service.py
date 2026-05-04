@@ -183,48 +183,48 @@ class EvalServicer(eval_service_pb2_grpc.EvalServiceServicer):
                     None, ctx.run, evaluator.evaluate, dataset
                 )
 
-        job_id, run_time, results_tf, scores_tf, multi_trial_scores_tf = evaluator.process()
-        # Fallback to empty dict if reporting is present but null in YAML
-        reporters = get_reporters(
-            config.get("reporting") or {}, job_id, run_time
-        )
+            job_id, run_time, results_tf, scores_tf, multi_trial_scores_tf = evaluator.process()
+            # Fallback to empty dict if reporting is present but null in YAML
+            reporters = get_reporters(
+                config.get("reporting") or {}, job_id, run_time
+            )
 
-        # Offload blocking results processing to a thread pool
-        logging.info("Offloading results processing to thread pool...")
-        ctx = contextvars.copy_context()
-        summary = await loop.run_in_executor(
-            None,
-            ctx.run,
-            _process_results,
-            reporters,
-            job_id,
-            run_time,
-            results_tf,
-            scores_tf,
-            multi_trial_scores_tf,
-            config,
-            model_config,
-            db_configs,
-        )
+            # Offload blocking results processing to a thread pool
+            logging.info("Offloading results processing to thread pool...")
+            ctx = contextvars.copy_context()
+            summary = await loop.run_in_executor(
+                None,
+                ctx.run,
+                _process_results,
+                reporters,
+                job_id,
+                run_time,
+                results_tf,
+                scores_tf,
+                multi_trial_scores_tf,
+                config,
+                model_config,
+                db_configs,
+            )
 
-        logging.info(
-            f"Finished Job ID {job_id} Thread count:{threading.active_count()}"
-        )
+            logging.info(
+                f"Finished Job ID {job_id} Thread count:{threading.active_count()}"
+            )
 
-        if config.get("summary_in_response"):
-            response = json.dumps({"job_id": job_id, "summary": summary})
-        else:
-            response = f"{job_id}"
-
-        tear_down_script = config.get("tear_down_script")
-        if tear_down_script:
-            if os.path.exists(tear_down_script):
-                logging.info(f"Eval: Executing tear_down_script '{tear_down_script}'")
-                run_script(tear_down_script, session_dir, "teardown")
+            if config.get("summary_in_response"):
+                response = json.dumps({"job_id": job_id, "summary": summary})
             else:
-                logging.error(f"Eval: Cannot run tear_down_script, file not found at '{tear_down_script}'")
+                response = f"{job_id}"
 
-        return eval_response_pb2.EvalResponse(response=response, session_id=session_id)
+            tear_down_script = config.get("tear_down_script")
+            if tear_down_script:
+                if os.path.exists(tear_down_script):
+                    logging.info(f"Eval: Executing tear_down_script '{tear_down_script}'")
+                    run_script(tear_down_script, session_dir, "teardown")
+                else:
+                    logging.error(f"Eval: Cannot run tear_down_script, file not found at '{tear_down_script}'")
+
+            return eval_response_pb2.EvalResponse(response=response, session_id=session_id)
 
         except Exception as e:
             display_config = "Unknown"
