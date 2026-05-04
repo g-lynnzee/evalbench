@@ -3,7 +3,44 @@ import subprocess
 import os
 import json
 import logging
+import re
 import sys
+import threading
+import time
+
+
+_SECRET_MANAGER_PATH_RE = re.compile(
+    r"^projects/[^/]+/secrets/[^/]+/versions/(?:\d+|latest)$"
+)
+_SECRET_MANAGER_URL_PREFIX = "secret_manager://"
+
+
+def _looks_like_secret_manager_path(value: str) -> bool:
+    if not isinstance(value, str):
+        return False
+    if value.startswith(_SECRET_MANAGER_URL_PREFIX):
+        value = value[len(_SECRET_MANAGER_URL_PREFIX):]
+    return bool(_SECRET_MANAGER_PATH_RE.match(value))
+
+
+def _fetch_secret_manager(path: str) -> str:
+    """Fetches the payload of a Secret Manager resource path.
+
+    Accepts either the bare `projects/.../secrets/.../versions/...` form or
+    the `secret_manager://projects/.../secrets/.../versions/...` URL form.
+    """
+    if path.startswith(_SECRET_MANAGER_URL_PREFIX):
+        path = path[len(_SECRET_MANAGER_URL_PREFIX):]
+    if not _SECRET_MANAGER_PATH_RE.match(path):
+        raise ValueError(
+            f"Not a valid Secret Manager resource path: {path!r}"
+        )
+    # Lazy-import so the module can load in environments without GCP libs.
+    from google.cloud import secretmanager_v1  # type: ignore
+    client = secretmanager_v1.SecretManagerServiceClient()
+    request = secretmanager_v1.AccessSecretVersionRequest(name=path)
+    response = client.access_secret_version(request=request)
+    return response.payload.data.decode("utf-8")
 
 
 class CLICommand:
@@ -40,20 +77,20 @@ class CodexCliGenerator(QueryGenerator):
         self.env = querygenerator_config.get("env", {})
         self.env["HOME"] = self.fake_home
 
-        api_key = self.env.get("OPENAI_API_KEY") or os.environ.get("OPENAI_API_KEY")
+        api_key = self._resolve_openai_api_key(querygenerator_config)
         if api_key:
             self.env["OPENAI_API_KEY"] = api_key
-
-        # Copy any existing Codex auth (e.g. auth.json) from the real home so the
-        # CLI can authenticate inside the sandboxed environment.
-        real_codex_dir = os.path.join(self.real_home, ".codex")
-        if os.path.exists(real_codex_dir):
-            import shutil
-            for fname in ("auth.json",):
-                src = os.path.join(real_codex_dir, fname)
-                dst = os.path.join(self.codex_config_dir, fname)
-                if os.path.isfile(src) and not os.path.exists(dst):
-                    shutil.copy2(src, dst)
+            self._write_codex_auth_json(api_key)
+            logging.info(
+                "Codex API key resolved (length=%d) and written to %s",
+                len(api_key), os.path.join(self.codex_config_dir, "auth.json"),
+            )
+        else:
+            logging.warning(
+                "Codex API key could not be resolved; Codex will fall back to "
+                "ChatGPT-OAuth and will fail with 402 'deactivated_workspace' "
+                "on accounts without ChatGPT-Plus."
+            )
 
         self.codex_cli_version = querygenerator_config.get(
             "codex_cli_version", "codex"
@@ -68,15 +105,136 @@ class CodexCliGenerator(QueryGenerator):
         # only support --experimental-json; this flag controls which is used.
         self.json_flag = querygenerator_config.get("json_flag", "--json")
 
+        self.pricing = self._normalize_pricing(querygenerator_config.get("pricing"))
+
         self.setup_config = querygenerator_config.get("setup", {})
         self.config_path = os.path.join(self.codex_config_dir, "config.toml")
-        if self.setup_config:
-            self._setup()
+        self._setup()
+
+    @staticmethod
+    def _normalize_pricing(pricing) -> dict | None:
+        """Normalizes a `pricing:` YAML block into per-token USD rates.
+
+        Accepts either:
+          pricing:
+            input_per_million_usd:        1.25
+            cached_input_per_million_usd: 0.125  # optional; default = 10% of input
+            output_per_million_usd:       10.0
+        ...or the per-token form (input_per_token_usd, output_per_token_usd, etc.).
+
+        Returns None if pricing is missing or malformed; downstream code then
+        leaves cost_usd at 0 instead of guessing.
+        """
+        if not isinstance(pricing, dict):
+            return None
+
+        def _rate(per_million_key: str, per_token_key: str) -> float | None:
+            pm = pricing.get(per_million_key)
+            pt = pricing.get(per_token_key)
+            if pm is not None:
+                return float(pm) / 1_000_000.0
+            if pt is not None:
+                return float(pt)
+            return None
+
+        try:
+            input_rate = _rate("input_per_million_usd", "input_per_token_usd")
+            output_rate = _rate("output_per_million_usd", "output_per_token_usd")
+            cached_rate = _rate(
+                "cached_input_per_million_usd", "cached_input_per_token_usd",
+            )
+        except (TypeError, ValueError) as e:
+            logging.warning(f"Invalid Codex pricing config; cost_usd will be 0: {e}")
+            return None
+
+        if input_rate is None or output_rate is None:
+            logging.warning(
+                "Codex pricing config missing input/output rates; cost_usd will be 0."
+            )
+            return None
+        if cached_rate is None:
+            cached_rate = input_rate * 0.1
+
+        return {
+            "input": input_rate,
+            "cached_input": cached_rate,
+            "output": output_rate,
+        }
+
+    def _compute_cost_usd(
+        self, input_tokens: int, cached_tokens: int, output_tokens: int,
+    ) -> float:
+        if not self.pricing:
+            return 0.0
+        billable_input = max(0, input_tokens - cached_tokens)
+        return (
+            billable_input * self.pricing["input"]
+            + cached_tokens * self.pricing["cached_input"]
+            + output_tokens * self.pricing["output"]
+        )
+
+    def _resolve_openai_api_key(self, config: dict) -> str:
+        """Resolves the OpenAI API key.
+
+        Resolution order:
+          1. `openai_api_key_secret` config field — a Secret Manager resource
+             path (`projects/.../secrets/.../versions/{N|latest}`), optionally
+             prefixed with `secret_manager://`.
+          2. `env.OPENAI_API_KEY` (or `OPENAI_API_KEY` from the process env).
+             If the value itself looks like a Secret Manager path, it's
+             resolved transparently.
+        """
+        secret_path = config.get("openai_api_key_secret")
+        if secret_path:
+            try:
+                return _fetch_secret_manager(secret_path)
+            except Exception as e:
+                logging.error(
+                    f"Failed to fetch OPENAI_API_KEY from Secret Manager "
+                    f"({secret_path}): {e}"
+                )
+                return ""
+
+        raw = self.env.get("OPENAI_API_KEY") or os.environ.get("OPENAI_API_KEY")
+        if raw and _looks_like_secret_manager_path(raw):
+            try:
+                return _fetch_secret_manager(raw)
+            except Exception as e:
+                logging.error(
+                    f"OPENAI_API_KEY looked like a Secret Manager path but "
+                    f"could not be fetched: {e}"
+                )
+                return ""
+        return raw or ""
+
+    _DEFAULT_TOP_LEVEL_CONFIG = {
+        "forced_login_method": "api",
+    }
+
+    def _write_codex_auth_json(self, api_key: str):
+        """Writes ~/.codex/auth.json with the API key.
+
+        Codex's auth manager only honors the `OPENAI_API_KEY` env var when
+        `enable_codex_api_key_env` is set internally — for `codex exec` the
+        canonical path is `auth.json` (the same file `codex login --api-key`
+        produces). Schema (from codex-rs/login/src/auth/storage.rs):
+
+            {"auth_mode": "apikey", "OPENAI_API_KEY": "<key>"}
+        """
+        auth_path = os.path.join(self.codex_config_dir, "auth.json")
+        payload = {"auth_mode": "apikey", "OPENAI_API_KEY": api_key}
+        with open(auth_path, "w") as f:
+            json.dump(payload, f)
+        try:
+            os.chmod(auth_path, 0o600)
+        except OSError:
+            pass
 
     def _setup(self):
         """Performs initial setup for Codex CLI (writes ~/.codex/config.toml)."""
         mcp_servers_config = self.setup_config.get("mcp_servers", {})
-        extra_config = self.setup_config.get("config", {})
+        extra_config = dict(self._DEFAULT_TOP_LEVEL_CONFIG)
+        extra_config.update(self.setup_config.get("config", {}))
         self._write_config_toml(mcp_servers_config, extra_config)
 
     def _write_config_toml(self, mcp_servers_config: dict, extra_config: dict):
@@ -116,7 +274,6 @@ class CodexCliGenerator(QueryGenerator):
 
     def _translate_mcp_config(self, server_name: str, config: dict) -> dict:
         """Translates a Gemini-style MCP server config into Codex's TOML shape."""
-        # stdio server (command + args): pass through fields Codex understands
         if "command" in config:
             out = {"command": config["command"]}
             if "args" in config:
@@ -195,22 +352,108 @@ class CodexCliGenerator(QueryGenerator):
             cli_cmd = CLICommand(self.codex_cli_version, str(cli_cmd))
         return self._run_codex_cli(cli_cmd)
 
+    _EV_ITEM_STARTED = "item.started"
+    _EV_ITEM_UPDATED = "item.updated"
+    _EV_ITEM_COMPLETED = "item.completed"
+
+    # Codex ThreadItem variants we count as "tool calls" for latency purposes.
+    _TOOL_ITEM_KINDS = (
+        "mcp_tool_call", "command_execution", "web_search", "file_change",
+    )
+
     def _execute_cli_command(
-        self, command: list[str], env: dict[str, str] | None = None
-    ) -> subprocess.CompletedProcess:
+        self, command: list[str], env: dict[str, str] | None = None,
+    ) -> tuple[subprocess.CompletedProcess, dict[str, int]]:
+        """Runs the Codex CLI with line-streamed stdout so we can stamp the
+        wall-clock time at which each NDJSON event arrives.
+
+        Returns the usual CompletedProcess plus a `{item_id: duration_ms}` map
+        for ThreadItem tool calls — measured as the gap between `item.started`
+        and the matching `item.completed` for kinds in _TOOL_ITEM_KINDS. Codex
+        events themselves carry no timestamps, so this in-process stamping is
+        the only path to per-tool latency.
+        """
         try:
-            return subprocess.run(
-                command, capture_output=True, text=True, check=False, env=env,
+            proc = subprocess.Popen(
+                command, env=env, text=True,
                 stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                bufsize=1,  # line-buffered so events arrive as Codex flushes them
             )
         except FileNotFoundError:
             return subprocess.CompletedProcess(
                 command, 127, "", f"Error: Command not found: {command[0]}"
-            )
+            ), {}
         except Exception as e:
             return subprocess.CompletedProcess(
                 command, 1, "", f"An unexpected error occurred: {e}"
-            )
+            ), {}
+
+        stderr_chunks: list[str] = []
+        def _drain_stderr():
+            try:
+                for line in proc.stderr:
+                    stderr_chunks.append(line)
+            except Exception as e:
+                logging.debug(f"stderr drain failed: {e}")
+        stderr_thread = threading.Thread(target=_drain_stderr, daemon=True)
+        stderr_thread.start()
+
+        stdout_lines: list[str] = []
+        started_at_ms: dict[str, float] = {}
+        tool_durations: dict[str, int] = {}
+
+        try:
+            for line in proc.stdout:
+                arrival_ms = time.monotonic() * 1000
+                stdout_lines.append(line)
+                self._stamp_tool_event(
+                    line, arrival_ms, started_at_ms, tool_durations,
+                )
+        except Exception as e:
+            logging.warning(f"stdout stream read failed: {e}")
+
+        proc.wait()
+        stderr_thread.join(timeout=5)
+
+        completed = subprocess.CompletedProcess(
+            command, proc.returncode,
+            "".join(stdout_lines), "".join(stderr_chunks),
+        )
+        return completed, tool_durations
+
+    @classmethod
+    def _stamp_tool_event(
+        cls, line: str, arrival_ms: float,
+        started_at_ms: dict[str, float], tool_durations: dict[str, int],
+    ) -> None:
+        """If `line` is an `item.started`/`item.completed` event for a tool
+        kind, record its arrival time / compute its duration."""
+        line = line.strip()
+        if not line:
+            return
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            return
+        event_type = event.get("type", "")
+        if event_type not in (cls._EV_ITEM_STARTED, cls._EV_ITEM_COMPLETED):
+            return
+        item = event.get("item") or {}
+        details = item.get("details") if isinstance(item.get("details"), dict) else {}
+        kind = item.get("type") or item.get("item_type") or details.get("type") or ""
+        if kind not in cls._TOOL_ITEM_KINDS:
+            return
+        item_id = item.get("id") or details.get("id") or ""
+        if not item_id:
+            return
+        if event_type == cls._EV_ITEM_STARTED:
+            started_at_ms.setdefault(item_id, arrival_ms)
+        else:  # _EV_ITEM_COMPLETED
+            t0 = started_at_ms.pop(item_id, None)
+            if t0 is not None:
+                tool_durations[item_id] = max(0, int(arrival_ms - t0))
 
     def _run_codex_cli(self, cli_cmd: CLICommand):
         env = os.environ.copy()
@@ -231,10 +474,8 @@ class CodexCliGenerator(QueryGenerator):
         else:
             command.append("exec")
 
-        # NDJSON streamed events.
         command.append(self.json_flag)
 
-        # Don't refuse to run outside a git repo.
         command.append("--skip-git-repo-check")
 
         # Disable approvals + sandbox so MCP/tool calls run unattended. The
@@ -254,19 +495,63 @@ class CodexCliGenerator(QueryGenerator):
         if self.profile:
             command.extend(["--profile", self.profile])
 
-        # Prompt is positional and must come last.
         command.append(cli_cmd.prompt)
 
         logging.info(f"Running Codex CLI: {' '.join(command)}")
 
-        result = self._execute_cli_command(command, env=env)
+        start_ms = time.monotonic()
+        result, tool_durations = self._execute_cli_command(command, env=env)
+        duration_ms = int((time.monotonic() - start_ms) * 1000)
         if result.stdout:
-            result.stdout = self._parse_stream_json(result.stdout)
+            result.stdout = self._parse_stream_json(
+                result.stdout,
+                duration_ms=duration_ms,
+                tool_durations=tool_durations,
+            )
+        if result.stderr:
+            result.stderr = self._scrub_stderr(result.stderr)
         return result
 
-    def _parse_stream_json(self, stream_output: str) -> str:
+    _STDERR_NOISE_PATTERNS = (
+        re.compile(
+            r"^\s*\d{4}-\d{2}-\d{2}T[^\s]+Z\s+ERROR\s+codex_core::session:\s+"
+            r"failed to record rollout items:\s+thread\s+\S+\s+not found\s*$"
+        ),
+        re.compile(r"^\s*Reading additional input from stdin\.\.\.\s*$"),
+    )
+
+    @classmethod
+    def _scrub_stderr(cls, stderr: str) -> str:
+        kept = [
+            line for line in stderr.splitlines()
+            if not any(p.match(line) for p in cls._STDERR_NOISE_PATTERNS)
+        ]
+        if not kept:
+            return ""
+        out = "\n".join(kept)
+        if stderr.endswith("\n"):
+            out += "\n"
+        return out
+
+    def _parse_stream_json(
+        self, stream_output: str,
+        duration_ms: int = 0,
+        tool_durations: dict[str, int] | None = None,
+    ) -> str:
         """Parses Codex CLI ThreadEvent NDJSON into the eval pipeline's
-        normalized {session_id, response, stats} shape."""
+        normalized {session_id, response, stats} shape.
+
+        `duration_ms` is the wall-clock time of the codex subprocess; it gets
+        attached to `stats.models.<m>.api.totalLatencyMs` for the
+        end_to_end_latency scorer.
+
+        `tool_durations` maps ThreadItem id -> wall-clock ms measured between
+        the in-process arrival of `item.started` and `item.completed` (Codex's
+        own events carry no timestamps). It's used to populate per-tool
+        `byName.<tool>.durationMs` and `tools.totalDurationMs` for the
+        tool_call_latency scorer.
+        """
+        tool_durations = tool_durations or {}
 
         final_obj = {"session_id": "", "response": "", "stats": {}}
         tool_uses: dict[str, dict] = {}
@@ -275,8 +560,6 @@ class CodexCliGenerator(QueryGenerator):
         model_name = self.model or "unknown"
 
         def item_kind(item: dict) -> str:
-            # Codex's ThreadItem may serialize the variant under "type",
-            # "item_type", or as a nested "details": {"type": ...}. Be lenient.
             return (
                 item.get("type")
                 or item.get("item_type")
@@ -319,7 +602,9 @@ class CodexCliGenerator(QueryGenerator):
                     )
                 continue
 
-            if event_type not in ("item.started", "item.updated", "item.completed"):
+            if event_type not in (
+                self._EV_ITEM_STARTED, self._EV_ITEM_UPDATED, self._EV_ITEM_COMPLETED,
+            ):
                 continue
 
             item = event.get("item") or {}
@@ -328,7 +613,7 @@ class CodexCliGenerator(QueryGenerator):
             item_id = item.get("id") or payload.get("id") or ""
 
             if kind == "agent_message":
-                if event_type == "item.completed":
+                if event_type == self._EV_ITEM_COMPLETED:
                     text = payload.get("text", "")
                     if text:
                         final_obj["response"] += text
@@ -340,7 +625,7 @@ class CodexCliGenerator(QueryGenerator):
                     "server": payload.get("server", ""),
                     "parameters": self._coerce_json(payload.get("arguments", {})),
                 }
-                if event_type == "item.completed":
+                if event_type == self._EV_ITEM_COMPLETED:
                     status = payload.get("status", "")
                     is_error = bool(payload.get("error")) or status not in (
                         "", "completed", "success", "ok",
@@ -355,7 +640,7 @@ class CodexCliGenerator(QueryGenerator):
                     "tool_name": "shell",
                     "parameters": {"command": payload.get("command", "")},
                 }
-                if event_type == "item.completed":
+                if event_type == self._EV_ITEM_COMPLETED:
                     exit_code = payload.get("exit_code")
                     is_error = bool(exit_code) and exit_code != 0
                     tool_results[item_id] = {
@@ -368,7 +653,7 @@ class CodexCliGenerator(QueryGenerator):
                     "tool_name": "web_search",
                     "parameters": {"query": payload.get("query", "")},
                 }
-                if event_type == "item.completed":
+                if event_type == self._EV_ITEM_COMPLETED:
                     tool_results[item_id] = {"status": "success", "content": ""}
 
             elif kind == "file_change":
@@ -376,7 +661,7 @@ class CodexCliGenerator(QueryGenerator):
                     "tool_name": "file_change",
                     "parameters": {"changes": payload.get("changes", [])},
                 }
-                if event_type == "item.completed":
+                if event_type == self._EV_ITEM_COMPLETED:
                     status = payload.get("status", "")
                     is_error = status not in ("", "completed", "success", "ok")
                     tool_results[item_id] = {
@@ -384,20 +669,18 @@ class CodexCliGenerator(QueryGenerator):
                         "content": "",
                     }
 
-        # Build aggregate stats so downstream scorers (token_consumption,
-        # tool_call_latency, etc.) see the same shape they get from the
-        # Claude Code generator.
         input_tokens = int(usage.get("input_tokens", 0) or 0)
         output_tokens = int(usage.get("output_tokens", 0) or 0)
         cached_tokens = int(usage.get("cached_input_tokens", 0) or 0)
         total_tokens = input_tokens + output_tokens
+        cost_usd = self._compute_cost_usd(input_tokens, cached_tokens, output_tokens)
 
         models = {
             model_name: {
                 "api": {
                     "totalRequests": 1,
                     "totalErrors": 0,
-                    "totalLatencyMs": 0,
+                    "totalLatencyMs": duration_ms,
                 },
                 "tokens": {
                     "input": input_tokens,
@@ -409,12 +692,12 @@ class CodexCliGenerator(QueryGenerator):
                     "thoughts": 0,
                     "tool": 0,
                 },
-                "cost_usd": 0,
+                "cost_usd": cost_usd,
                 "roles": {
                     "main": {
                         "totalRequests": 1,
                         "totalErrors": 0,
-                        "totalLatencyMs": 0,
+                        "totalLatencyMs": duration_ms,
                         "tokens": {
                             "input": input_tokens,
                             "prompt": input_tokens,
@@ -430,6 +713,9 @@ class CodexCliGenerator(QueryGenerator):
         }
         final_obj["stats"]["models"] = models
 
+        total_tool_duration_ms = sum(
+            tool_durations.get(tid, 0) for tid in tool_uses
+        )
         tools_stats = {
             "totalCalls": len(tool_uses),
             "totalSuccess": sum(
@@ -438,7 +724,7 @@ class CodexCliGenerator(QueryGenerator):
             "totalFail": sum(
                 1 for tr in tool_results.values() if tr.get("status") != "success"
             ),
-            "totalDurationMs": 0,
+            "totalDurationMs": total_tool_duration_ms,
             "decisions": {
                 "accept": len(tool_uses),
                 "reject": 0,
@@ -461,6 +747,7 @@ class CodexCliGenerator(QueryGenerator):
                 },
             })
             bucket["count"] += 1
+            bucket["durationMs"] += tool_durations.get(tid, 0)
             bucket["parameters"].append(tu.get("parameters", {}))
             bucket["decisions"]["accept"] += 1
             bucket["decisions"]["auto_accept"] += 1

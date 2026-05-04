@@ -1,13 +1,11 @@
-codex_cli_version: "codex"
+codex_cli_version: "@openai/codex@latest"
 generator: codex_cli
 model: "gpt-5.5"
 
-sandbox_mode: "danger-full-access"
-approval_mode: "never"
-json_flag: "--json"
+# Fetched from Secret Manager (override per-environment as needed).
+openai_api_key_secret: "projects/393137573/secrets/OPENAI_API_KEY/versions/1"
 
 env:
-  OPENAI_API_KEY: <API_KEY>
   GOOGLE_CLOUD_PROJECT: "astana-evaluation"
 
 setup:
