@@ -47,6 +47,9 @@ dependencies = [
     "google-cloud-firestore",
     "google-cloud-iam",
     "google-cloud-storage",
+    "dbt-core",
+    "dbt-bigquery",
+    "dbt-postgres",
 ]
 
 [tool.setuptools.packages.find]
@@ -60,7 +63,7 @@ members = [
 [dependency-groups]
 dev = [
     "pycodestyle>=2.14.0",
-    "pytest",
+    "pytest>=8.0.0",
 ]
 
 [[tool.uv.index]]
