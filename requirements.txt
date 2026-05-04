@@ -32,6 +32,10 @@ pymongo
 mongomock
 rich
 google-adk
+mcp
+pytest
+mock
+google-cloud-storage
 google-cloud-geminidataanalytics>=0.11.0
 google-cloud-firestore
 google-cloud-iam
