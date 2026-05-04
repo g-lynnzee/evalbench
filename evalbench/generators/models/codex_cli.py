@@ -231,6 +231,8 @@ class CodexCliGenerator(QueryGenerator):
             logging.warning(
                 f"Failed to set permissions on {auth_path} to 0o600: {e}"
             )
+                f"Failed to set permissions on {auth_path} to 0o600: {e}"
+            )
 
     def _setup(self):
         """Performs initial setup for Codex CLI (writes ~/.codex/config.toml)."""
