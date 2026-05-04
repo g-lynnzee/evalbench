@@ -9,15 +9,18 @@ from scorers import llmrater
 from scorers import returnedsql
 from scorers import executablesql
 from scorers import trajectorymatcher
+from scorers import skillstrajectorymatcher
 from scorers import goalcompletionrate
 from scorers import behavioralmetrics
 from scorers import parameteranalysis
+from scorers import skillsbestpractices
 from scorers import turncount
 from scorers import endtoendlatency
 from scorers import toolcalllatency
 from scorers import tokenconsumption
 from scorers import binaryrubricscorer
 from scorers import pythonscorer
+from scorers import dataformscorer
 from dataset.evaloutput import EvalOutput
 import logging
 import os
@@ -62,6 +65,16 @@ def compare(
     if "trajectory_matcher" in scorers:
         comparators.append(
             trajectorymatcher.TrajectoryMatcher(scorers["trajectory_matcher"])
+        )
+    if "skills_trajectory" in scorers:
+        comparators.append(
+            skillstrajectorymatcher.SkillsTrajectoryMatcher(scorers["skills_trajectory"])
+        )
+    if "skills_best_practices" in scorers:
+        comparators.append(
+            skillsbestpractices.SkillsBestPractices(
+                scorers["skills_best_practices"], global_models
+            )
         )
     if "goal_completion" in scorers:
         comparators.append(
@@ -140,6 +153,14 @@ def compare(
                 if not custom_name:
                     custom_name = key
             comparators.append(pythonscorer.PythonScorer(scorer_config, name=custom_name))
+    if "dataform_compile" in scorers:
+        comparators.append(
+            dataformscorer.DataformCompileScorer(scorers["dataform_compile"])
+        )
+    if "dataform_run" in scorers:
+        comparators.append(
+            dataformscorer.DataformRunScorer(scorers["dataform_run"])
+        )
 
     for comp in comparators:
         score = 0

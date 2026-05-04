@@ -6,15 +6,17 @@ import logging
 import re
 import shutil
 import sys
+from util.context import rpc_id_var
 
 
 class CLICommand:
-    def __init__(self, cli, prompt, env=None, resume=False, yolo=True):
+    def __init__(self, cli, prompt, env=None, resume=False, yolo=True, cwd=None):
         self.cli = cli
         self.prompt = prompt
         self.env = env if env else {}
         self.resume = resume
         self.yolo = yolo
+        self.cwd = cwd
 
 
 class GeminiCliGenerator(QueryGenerator):
@@ -28,7 +30,10 @@ class GeminiCliGenerator(QueryGenerator):
 
         # If running via eval_server.py (gRPC), use session-specific path in shared volume
         if sys.argv[0].endswith("eval_server.py"):
-            session_id = querygenerator_config.get("session_id", "default")
+            session_id = querygenerator_config.get("session_id")
+            if not session_id:
+                ctx_id = rpc_id_var.get()
+                session_id = ctx_id if ctx_id != "default" else "default"
             self.fake_home = os.path.join("/tmp_sessions", session_id, "fake_home")
         else:
             self.fake_home = os.path.abspath(os.path.join(".venv", "fake_home"))
@@ -780,10 +785,10 @@ class GeminiCliGenerator(QueryGenerator):
         return self._run_gemini_cli(cli_cmd)
 
     def _execute_cli_command(
-        self, command: list[str], env: dict[str, str] | None = None
+        self, command: list[str], env: dict[str, str] | None = None, cwd: str | None = None
     ) -> subprocess.CompletedProcess:
         try:
-            result = subprocess.run(command, capture_output=True, text=True, check=False, env=env)
+            result = subprocess.run(command, capture_output=True, text=True, check=False, env=env, cwd=cwd if cwd else self.fake_home)
             # Filter out benign schema warnings from json decoder from stderr to reduce noise
             if result.stderr:
                 result.stderr = "\n".join(
@@ -837,7 +842,7 @@ class GeminiCliGenerator(QueryGenerator):
             ]
         )
 
-        result = self._execute_cli_command(command, env=env)
+        result = self._execute_cli_command(command, env=env, cwd=cli_cmd.cwd)
         if result.returncode == 0 and result.stdout:
             result.stdout = self._parse_stream_json(result.stdout)
 
@@ -1004,6 +1009,27 @@ class GeminiCliGenerator(QueryGenerator):
             return list(output_json["stats"]["tools"]["byName"].keys())
         return []
 
+    def extract_skills(self, stdout: str) -> list[str]:
+        """Extracts activated skill names from the activate_skill tool's parameters.
+
+        In Gemini CLI, skills are invoked via the 'activate_skill' built-in tool.
+        This method extracts skill names from the parameters of activate_skill calls.
+        """
+        output_json = self.parse_response(stdout)
+        try:
+            by_name = output_json["stats"]["tools"]["byName"]
+            activate_calls = by_name.get("activate_skill", {})
+            parameters_list = activate_calls.get("parameters", [])
+            skills = []
+            for params in parameters_list:
+                # Try common parameter names for skill name
+                skill_name = params.get("skill_name") or params.get("skillName") or params.get("skill")
+                if skill_name and skill_name not in skills:
+                    skills.append(skill_name)
+            return skills
+        except (KeyError, TypeError):
+            return []
+
     def safe_generate(self, cli_cmd: CLICommand) -> subprocess.CompletedProcess:
         result = self.generate_internal(cli_cmd)
         if isinstance(result, str):
@@ -1014,7 +1040,7 @@ class GeminiCliGenerator(QueryGenerator):
         return result
 
     def create_command(
-        self, cli: str, prompt: str, env: dict = None, resume: bool = False
+        self, cli: str, prompt: str, env: dict = None, resume: bool = False, cwd: str = None
     ) -> CLICommand:
         merged_env = self.env.copy()
 
@@ -1025,4 +1051,4 @@ class GeminiCliGenerator(QueryGenerator):
 
         if env:
             merged_env.update(env)
-        return CLICommand(cli=cli, prompt=prompt, env=merged_env, resume=resume)
+        return CLICommand(cli=cli, prompt=prompt, env=merged_env, resume=resume, cwd=cwd)
