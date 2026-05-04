@@ -112,11 +112,18 @@ class TestEvaluatorRobustness(unittest.TestCase):
             "total": 10,
             "lock": MagicMock()}
 
+        mock_item = MagicMock()
+        mock_item.id = "test_id"
+        mock_item.dialects = ["sql"]
+        mock_item.database = "fake"
+        mock_item.query_type = "dql"
+
         q = Queue()
         q.put(MagicMock())
+
         with self.assertLogs('root', level='ERROR') as cm:
             self.evaluator.evaluate(
-                dataset=[MagicMock()],
+                dataset=[mock_item],
                 db_queue=q,
                 prompt_generator=MagicMock(),
                 model_generator=MagicMock(),
@@ -161,11 +168,18 @@ class TestEvaluatorRobustness(unittest.TestCase):
             "total": 10,
             "lock": MagicMock()}
 
+        mock_item = MagicMock()
+        mock_item.id = "test_id"
+        mock_item.dialects = ["sql"]
+        mock_item.database = "fake"
+        mock_item.query_type = "dql"
+
         q = Queue()
         q.put(MagicMock())
+
         with self.assertLogs('root', level='ERROR') as cm:
             self.evaluator.evaluate(
-                dataset=[MagicMock()],
+                dataset=[mock_item],
                 db_queue=q,
                 prompt_generator=MagicMock(),
                 model_generator=MagicMock(),

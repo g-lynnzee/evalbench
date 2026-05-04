@@ -94,14 +94,17 @@ class EvalServicer(eval_service_pb2_grpc.EvalServiceServicer):
     ) -> eval_response_pb2.EvalResponse:
         resource_map = {r.address: r.address for r in request.resources}
         experiment_config = yaml.safe_load(request.yaml_config.decode("utf-8"))
-        update_google3_relative_paths(experiment_config, rpc_id_var.get(), resource_map)
+        update_google3_relative_paths(
+            experiment_config, rpc_id_var.get(), resource_map)
         for resource in request.resources:
             if resource.address.endswith(".yaml"):
                 yaml_config = yaml.safe_load(resource.content.decode("utf-8"))
-                update_google3_relative_paths(yaml_config, rpc_id_var.get(), resource_map)
+                update_google3_relative_paths(
+                    yaml_config, rpc_id_var.get(), resource_map)
                 resource.content = yaml.dump(yaml_config).encode("utf-8")
         session = SESSIONMANAGER.get_session(rpc_id_var.get())
-        SESSIONMANAGER.write_resource_files(rpc_id_var.get(), request.resources)
+        SESSIONMANAGER.write_resource_files(
+            rpc_id_var.get(), request.resources)
         set_session_configs(session, experiment_config)
         session_id = rpc_id_var.get()
         return eval_response_pb2.EvalResponse(response="ack", session_id=session_id)
@@ -115,7 +118,8 @@ class EvalServicer(eval_service_pb2_grpc.EvalServiceServicer):
         logging.info("Retrieving Evals for: %s.", rpc_id_var.get())
         experiment_config = session["config"]
         dataset_config_json = experiment_config["dataset_config"]
-        dataset = load_dataset_from_json(dataset_config_json, experiment_config)
+        dataset = load_dataset_from_json(
+            dataset_config_json, experiment_config)
         for _, eval_inputs in dataset.items():
             for eval_input in eval_inputs:
                 eval_input_request = eval_input.to_proto()
@@ -179,28 +183,29 @@ class EvalServicer(eval_service_pb2_grpc.EvalServiceServicer):
                     None, ctx.run, evaluator.evaluate, dataset
                 )
 
-            job_id, run_time, results_tf, scores_tf = evaluator.process()
-            # Fallback to empty dict if reporting is present but null in YAML
-            reporters = get_reporters(
-                config.get("reporting") or {}, job_id, run_time
-            )
+        job_id, run_time, results_tf, scores_tf, multi_trial_scores_tf = evaluator.process()
+        # Fallback to empty dict if reporting is present but null in YAML
+        reporters = get_reporters(
+            config.get("reporting") or {}, job_id, run_time
+        )
 
-            # Offload blocking results processing to a thread pool
-            logging.info("Offloading results processing to thread pool...")
-            ctx = contextvars.copy_context()
-            summary = await loop.run_in_executor(
-                None,
-                ctx.run,
-                _process_results,
-                reporters,
-                job_id,
-                run_time,
-                results_tf,
-                scores_tf,
-                config,
-                model_config,
-                db_configs,
-            )
+        # Offload blocking results processing to a thread pool
+        logging.info("Offloading results processing to thread pool...")
+        ctx = contextvars.copy_context()
+        summary = await loop.run_in_executor(
+            None,
+            ctx.run,
+            _process_results,
+            reporters,
+            job_id,
+            run_time,
+            results_tf,
+            scores_tf,
+            multi_trial_scores_tf,
+            config,
+            model_config,
+            db_configs,
+        )
 
             logging.info(
                 f"Finished Job ID {job_id} Thread count:{threading.active_count()}"
@@ -238,7 +243,7 @@ class EvalServicer(eval_service_pb2_grpc.EvalServiceServicer):
 
 
 def _process_results(
-    reporters, job_id, run_time, results_tf, scores_tf, config, model_config, db_configs
+    reporters, job_id, run_time, results_tf, scores_tf, multi_trial_scores_tf, config, model_config, db_configs
 ):
     config_df = config_to_df(
         job_id,
@@ -252,7 +257,17 @@ def _process_results(
     assert not results_df.empty, "There were no matching evals in this run."
     report.quick_summary(results_df)
     scores = load_json(scores_tf)
-    scores_df, summary_scores_df = analyzer.analyze_result(scores, config)
+    if multi_trial_scores_tf:
+        multi_trial_scores = load_json(multi_trial_scores_tf)
+        if multi_trial_scores:
+            scores.extend(multi_trial_scores)
+
+    num_prompts = len(set(r.get("prompt_id")
+                      for r in results if r.get("prompt_id")))
+    num_trials = config.get("num_trials", 1)
+    scores_df, summary_scores_df = analyzer.analyze_result(
+        scores, config, num_prompts=num_prompts, num_trials=num_trials
+    )
     summary_scores_df["job_id"] = job_id
     summary_scores_df["run_time"] = run_time
 
@@ -266,6 +281,8 @@ def _process_results(
     # k8s emptyDir /tmp does not auto cleanup, so we explicitly delete
     pathlib.Path(results_tf).unlink()
     pathlib.Path(scores_tf).unlink()
+    if multi_trial_scores_tf:
+        pathlib.Path(multi_trial_scores_tf).unlink()
 
     # Build summary dict from summary_scores_df
     summary = {"total": 0, "scores": {}}
