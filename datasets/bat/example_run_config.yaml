@@ -57,3 +57,5 @@ reporting:
     output_directory: 'results'
   bigquery:
     gcp_project_id: cloud-db-nl2sql
+  gcs_artifacts:
+    bucket: 'evalbench-sessions-cloud-db-nl2sql'
