@@ -925,6 +925,7 @@ dependencies = [
     { name = "sqlglot" },
     { name = "sqlparse" },
     { name = "tabulate" },
+    { name = "viewer" },
 ]
 
 [package.dev-dependencies]
@@ -977,6 +978,7 @@ requires-dist = [
     { name = "sqlglot" },
     { name = "sqlparse" },
     { name = "tabulate" },
+    { name = "viewer", editable = "viewer" },
 ]
 
 [package.metadata.requires-dev]
@@ -4892,7 +4894,7 @@ wheels = [
 [[package]]
 name = "viewer"
 version = "0.1.0"
-source = { virtual = "viewer" }
+source = { editable = "viewer" }
 dependencies = [
     { name = "gevent" },
     { name = "gunicorn" },
