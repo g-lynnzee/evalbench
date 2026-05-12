@@ -26,6 +26,7 @@ COPY pyproject.toml uv.lock ./
 COPY viewer/pyproject.toml viewer/
 RUN uv sync --frozen
 COPY . .
+RUN uv sync --frozen
 
 # Create a non-root user for Claude Code. It refuses
 # --dangerously-skip-permissions when running as root.
