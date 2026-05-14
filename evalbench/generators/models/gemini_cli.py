@@ -51,18 +51,21 @@ class GeminiCliGenerator(QueryGenerator):
         # after resuming the session.
         gemini_settings_path = os.path.join(self.gemini_home, "settings.json")
         os.makedirs(os.path.dirname(gemini_settings_path), exist_ok=True)
-        
+
         current_settings = {}
         if os.path.exists(gemini_settings_path):
             try:
                 with open(gemini_settings_path, "r") as f:
                     current_settings = json.load(f)
             except json.JSONDecodeError:
-                pass
-                
+                logging.warning(
+                    "Invalid JSON in Gemini settings at %s; using default settings.",
+                    gemini_settings_path,
+                )
+
         context_config = current_settings.setdefault("context", {})
         include_dirs = context_config.setdefault("includeDirectories", [])
-        
+
         if self.fake_home not in include_dirs:
             include_dirs.append(self.fake_home)
 
