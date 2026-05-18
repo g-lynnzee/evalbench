@@ -21,7 +21,7 @@ class SkillsBestPractices(comparator.Comparator):
 
     Configuration (under scorers.skills_best_practices in run YAML):
       model_config: path/to/model.yaml   (required)
-      skills_dir: /path/to/skills/dir    (optional; falls back to the Claude Code sandbox path)
+      skills_dir: /path/to/skills/dir    (optional; falls back to sandbox paths)
 
     The scorer iterates over all activated skills (from accumulated_skills),
     reads each skill's SKILL.md from skills_dir/<skill_name>/SKILL.md,
@@ -37,20 +37,25 @@ class SkillsBestPractices(comparator.Comparator):
 
         # Resolve where skill SKILL.md files live. Prefer an explicit
         # `skills_dir` in the scorer config; otherwise fall back to the
-        # Claude Code sandbox path used by the generator.
+        # sandbox paths used by the agent generators.
         self.skills_dir = config.get("skills_dir") or ""
         if not self.skills_dir:
-            fake_home_skills = os.path.join(
-                ".venv", "fake_home_claude", ".claude", "skills")
-            if os.path.isdir(fake_home_skills):
-                self.skills_dir = os.path.abspath(fake_home_skills)
-                logging.info(
-                    f"Using fake_home skills directory: {self.skills_dir}")
+            fallback_skill_dirs = (
+                os.path.join(".venv", "fake_home_claude", ".claude", "skills"),
+                os.path.join(".venv", "fake_home_codex", ".codex", "skills"),
+                os.path.join(".venv", "fake_home_gemini", ".gemini", "skills"),
+            )
+            for fake_home_skills in fallback_skill_dirs:
+                if os.path.isdir(fake_home_skills):
+                    self.skills_dir = os.path.abspath(fake_home_skills)
+                    logging.info(
+                        f"Using fake_home skills directory: {self.skills_dir}")
+                    break
 
         if not self.skills_dir:
             raise ValueError(
                 "skills_dir is required: set scorers.skills_best_practices.skills_dir, "
-                "or run the Claude Code generator first so .venv/fake_home_claude/.claude/skills exists."
+                "or run an agent generator first so its fake_home skills directory exists."
             )
 
     def _find_skill_md(self, skill_name: str) -> str | None:
@@ -189,7 +194,9 @@ class SkillsBestPractices(comparator.Comparator):
 
         scores = []
         explanations = []
-        logging.info(f"Evaluating {len(accumulated_skills)} skill(s) for best practices: {accumulated_skills}")
+        logging.info(
+            f"Evaluating {len(accumulated_skills)} skill(s) "
+            f"for best practices: {accumulated_skills}")
         for skill_name in accumulated_skills:
             score, explanation = self._score_skill(skill_name)
             scores.append(score)
