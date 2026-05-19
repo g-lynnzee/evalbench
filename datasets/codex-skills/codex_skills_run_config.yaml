@@ -13,7 +13,6 @@ scorers:
     enforce_order: false
   skills_best_practices:
     model_config: datasets/model_configs/gemini_3.1_pro_model.yaml
-    skills_dir: ".venv/fake_home_codex/.codex/plugins/marketplaces/cloud-sql-postgresql/skills"
   goal_completion:
     model_config: datasets/model_configs/gemini_3.1_pro_model.yaml
   behavioral_metrics:
