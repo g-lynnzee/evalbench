@@ -190,13 +190,13 @@ class SkillsBestPractices(comparator.Comparator):
                     if os.path.isdir(d):
                         skills_dir = os.path.abspath(d)
                         break
-            
+
             if not skills_dir:
                 # Fallback to hardcoded paths relative to CWD
                 fallback_skill_dirs = (
                     os.path.join(".venv", "fake_home_claude", ".claude", "skills"),
                     os.path.join(".venv", "fake_home_codex", ".codex", "skills"),
-                    os.path.join(".venv", "fake_home", ".gemini", "skills"), # Fixed path
+                    os.path.join(".venv", "fake_home", ".gemini", "skills"),  # Fixed path
                 )
                 for d in fallback_skill_dirs:
                     if os.path.isdir(d):
