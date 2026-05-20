@@ -66,7 +66,6 @@ class CodexCliGenerator(QueryGenerator):
                 os.path.join(".venv", "fake_home_codex"))
 
         self.codex_config_dir = os.path.join(self.fake_home, ".codex")
-        self.codex_agents_dir = os.path.join(self.fake_home, ".agents")
         self.skills_dir = os.path.join(self.codex_config_dir, "skills")
 
         os.makedirs(self.fake_home, exist_ok=True)
@@ -350,7 +349,7 @@ class CodexCliGenerator(QueryGenerator):
         display_name = skill_config.get(
             "marketplace_display_name", "EvalBench Local Skills")
 
-        plugins_dir = os.path.join(self.codex_agents_dir, "plugins")
+        plugins_dir = os.path.join(self.codex_config_dir, "plugins")
         os.makedirs(plugins_dir, exist_ok=True)
         marketplace_path = os.path.join(plugins_dir, "marketplace.json")
 
@@ -1063,8 +1062,11 @@ class CodexCliGenerator(QueryGenerator):
         installed_skills = self._get_installed_skills()
         items = []
 
+        if not installed_skills:
+            return []
+
         def add_skill(name: str):
-            if name and (not installed_skills or name in installed_skills) and name not in items:
+            if name and name in installed_skills and name not in items:
                 items.append(name)
 
         for tool_name in by_name:

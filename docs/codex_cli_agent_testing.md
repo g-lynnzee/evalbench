@@ -379,7 +379,7 @@ setup:
 
 The generator will:
 1. Clone the repository into `<fake_home>/.codex/plugins/`
-2. Register the plugin in `<fake_home>/.agents/plugins/marketplace.json`
+2. Register the plugin in `<fake_home>/.codex/plugins/marketplace.json`
 3. Install the individual skills into `<fake_home>/.codex/skills/`
 
 These skills are then available for the Codex agent to use during the evaluation turns.
