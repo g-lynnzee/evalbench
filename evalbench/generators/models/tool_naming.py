@@ -35,7 +35,6 @@ from typing import Optional, Tuple
 CANONICAL_SEPARATOR = "__"
 
 _CLAUDE_MCP_PREFIX = "mcp__"
-_GEMINI_MCP_PREFIX = "mcp_"
 
 # Matches ``mcp_<server>_<tool>`` where the server segment contains no
 # underscores. Mirrors the contract enforced by gemini-cli upstream so we
