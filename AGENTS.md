@@ -105,9 +105,9 @@ When evaluating agentic frameworks that leverage external tools (e.g., Gemini CL
 
 | Paradigm | Supported Generators | How it Works |
 |---|---|---|
-| **MCP Servers** | `gemini_cli`, `claude_code` | Remote HTTP/SSE or local stdio-based Model Context Protocol servers |
-| **Extensions** | `gemini_cli` | GitHub-hosted plugin packages installed idempotently via CLI |
-| **Skills** | `gemini_cli` | Local or registry skill packages enabled/linked in the sandboxed environment |
+| **MCP Servers** | `gemini_cli`, `claude_code`, `codex_cli` | Remote HTTP/SSE or local stdio-based Model Context Protocol servers |
+| **Extensions** | `gemini_cli`, `claude_code`, `codex_cli` | GitHub-hosted plugin packages installed idempotently via CLI |
+| **Skills** | `gemini_cli`, `claude_code`, `codex_cli` | Local or registry skill packages enabled/linked in the sandboxed environment |
 
 ---
 
@@ -207,7 +207,7 @@ Contains the test cases.
       "id": "list-instances-01",
       "starting_prompt": "List all Cloud SQL instances in project my-evaluation-project",
       "conversation_plan": "Ensure the agent accurately calls list_instances. Verify the output is returned correctly.",
-      "expected_trajectory": ["list_instances"],
+      "expected_trajectory": ["cloud-sql__list_instances"],
       "env": { "GOOGLE_CLOUD_PROJECT": "my-evaluation-project" },
       "max_turns": 4
     }
