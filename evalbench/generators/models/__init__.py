@@ -10,7 +10,11 @@ from .query_data_api import QueryDataAPIGenerator
 from .gemini_cli import GeminiCliGenerator
 from .claude_code import ClaudeCodeGenerator
 from .codex_cli import CodexCliGenerator
+<<<<<<< HEAD
 from .data_engineering_agent import DataEngineeringAgentGenerator
+=======
+from .agy_cli import AgyCliGenerator
+>>>>>>> 99788ee (feat: add AgyCliGenerator support to evaluator and models, including test suite and configuration datasets)
 from util.config import load_yaml_config
 
 
@@ -45,6 +49,8 @@ def get_generator(global_models, model_config_path: str, db: DB = None):
             model = CodexCliGenerator(config)
         if config["generator"] == "data_engineering_agent":
             model = DataEngineeringAgentGenerator(config)
+        if config["generator"] == "agy_cli":
+            model = AgyCliGenerator(config)
         if not model:
             raise ValueError(f"Unknown Generator {config['generator']}")
 
