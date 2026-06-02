@@ -22,8 +22,10 @@ RUN curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --dearmor -
   apt-get install -y google-cloud-cli
 
 # Antigravity CLI (agy) -- installer writes a SHA-512-verified binary to the
-# directory passed via --dir. The binary self-updates in the background, so
-# no version pinning is exposed; whichever build is on PATH at run time wins.
+# directory passed via --dir. The installer exposes no version pinning, but the
+# binary self-updates in the background; AGY_CLI_DISABLE_AUTO_UPDATE freezes it
+# to the build installed here so a run's agy version stays fixed for the image.
+ENV AGY_CLI_DISABLE_AUTO_UPDATE=true
 RUN curl -fsSL https://antigravity.google/cli/install.sh | sh -s -- --dir /usr/local/bin
 
 WORKDIR /evalbench
