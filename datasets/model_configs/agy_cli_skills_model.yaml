@@ -1,0 +1,26 @@
+# Antigravity (agy) CLI -- self-updating native binary. The `agy` command on
+# PATH is what runs.
+#
+# Model selection: agy reads no model env var, so the harness writes the
+# model into settings.json `model`. The value must be the exact agy UI label
+# (e.g. "Gemini 3.1 Pro (High)"), obtained by running `/model` in interactive
+# agy and reading what it writes to settings.json. Left unset here so the run
+# inherits whatever the host's real settings.json last selected via `/model`.
+generator: agy_cli
+env:
+  GOOGLE_CLOUD_PROJECT: "astana-evaluation"
+  GOOGLE_CLOUD_LOCATION: "global"
+  GOOGLE_GENAI_USE_VERTEXAI: "true"
+
+  # Set the following environment variables for sql skills
+  CLOUD_SQL_POSTGRES_PROJECT: "astana-evaluation"
+  CLOUD_SQL_POSTGRES_REGION: "us-central1"
+  CLOUD_SQL_POSTGRES_INSTANCE: <instance>
+  CLOUD_SQL_POSTGRES_DATABASE: <database>
+  CLOUD_SQL_POSTGRES_USER: <user>
+  CLOUD_SQL_POSTGRES_PASSWORD: <password>
+  CLOUD_SQL_POSTGRES_IP_TYPE: "PUBLIC"
+setup:
+  skills:
+    - action: install_from_repo
+      path: "https://github.com/gemini-cli-extensions/cloud-sql-postgresql.git"

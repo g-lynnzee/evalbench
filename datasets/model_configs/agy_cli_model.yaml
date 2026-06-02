@@ -1,0 +1,36 @@
+# Antigravity (agy) CLI -- self-updating native binary installed via
+# https://antigravity.google/cli/install.sh. No npm package and no pinning
+# mechanism is exposed by the installer; the `agy` binary on PATH is what runs.
+
+generator: agy_cli
+
+# Model to use. agy has no --model flag and reads no model env var, so the
+# harness writes this into agy's settings.json `model` key. The value must
+# be the exact agy UI label (NOT an API id like "gemini-2.5-pro") -- get it
+# by running `/model` in interactive agy and reading the value it writes to
+# ~/.gemini/antigravity-cli/settings.json. An unrecognized label is silently
+# ignored and agy falls back to its default model. Omit this key to inherit
+# whatever model the host's real settings.json last selected via `/model`.
+model: "Gemini 3.1 Pro (High)"
+
+env:
+  GOOGLE_CLOUD_PROJECT: "astana-evaluation"
+  GOOGLE_CLOUD_LOCATION: "global"
+  GOOGLE_GENAI_USE_VERTEXAI: "true"
+
+setup:
+  mcp_servers:
+    "cloud-sql":
+      # agy's MCP schema names the HTTP endpoint field "serverUrl" (the
+      # Windsurf/cortex lineage), not gemini's "httpUrl". The binary's
+      # config struct has no httpUrl field, so an httpUrl value is parsed
+      # to a nil ServerUrl -- no transport, no tools, silent fallback to
+      # gcloud shell-outs. authProviderType/oauth/headers are all native
+      # agy fields, so Google auth works without Bearer-header injection.
+      serverUrl: "https://sqladmin.googleapis.com/mcp"
+      authProviderType: google_credentials
+      oauth:
+        scopes:
+        - https://www.googleapis.com/auth/cloud-platform
+      headers:
+        X-Goog-User-Project: astana-evaluation

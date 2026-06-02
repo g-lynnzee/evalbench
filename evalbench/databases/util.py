@@ -52,21 +52,22 @@ def _is_db_secret_path(secret: str) -> bool:
     return bool(re.match(pattern, secret))
 
 
+def access_secret(secret_path: str) -> str:
+    """Returns the decoded UTF-8 payload of a Secret Manager version.
+
+    Caller is responsible for validating the resource path shape.
+    """
+    request = secretmanager_v1.AccessSecretVersionRequest(name=secret_path)
+    response = get_client().access_secret_version(request=request)
+    return response.payload.data.decode("utf-8")
+
+
 def get_db_secret(secret):
     if not _is_db_secret_path(secret):
         raise ValueError(
             "secret manager path not parsable. Could not recover password for DB."
         )
-    secret_path = secret
-    # Initialize request argument(s)
-    request = secretmanager_v1.AccessSecretVersionRequest(
-        name=secret_path,
-    )
-    # Make the request
-    response = get_client().access_secret_version(request=request)
-
-    # Return the secret
-    return response.payload.data.decode("utf-8")
+    return access_secret(secret)
 
 
 def generate_ddl(data, db_name, comments_data=None):

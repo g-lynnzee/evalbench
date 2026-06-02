@@ -73,7 +73,7 @@ class GeminiCliGenerator(QueryGenerator):
         with open(gemini_settings_path, "w") as f:
             json.dump(current_settings, f, indent=2)
 
-        self.env = querygenerator_config.get("env", {})
+        self.env = querygenerator_config.get("env") or {}
         self.env["HOME"] = self.fake_home
 
         adc_path = self.env.get("GOOGLE_APPLICATION_CREDENTIALS")

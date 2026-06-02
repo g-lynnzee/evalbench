@@ -1,0 +1,33 @@
+{
+  "scenarios": [
+    {
+      "id": "cloud-sql-debug-01",
+      "starting_prompt": "list all instances in project astana-evaluation",
+      "conversation_plan": "Ask the agent to list instances in project astana-evaluation. Once all instances are listed if nl2code exist get its state and validate its RUNNABLE",
+      "expected_trajectory": [
+        "cloud-sql__list_instances",
+        "cloud-sql__get_instance"
+      ],
+      "env": {
+        "GOOGLE_CLOUD_PROJECT": "astana-evaluation"
+      },
+      "kind": "tools",
+      "max_turns": 3
+    },
+    {
+      "id": "csql-update-instance-scaling",
+      "starting_prompt": "Scale up my database instance.",
+      "conversation_plan": "The user wants to increase the resources for 'nl2code' in astana-evaluation project. When asked for specifics, state you want to change the tier/machine type to 'db-custom-4-15360' (4 vCPUs, 15GB RAM). Confirm the update when asked. Verify the operation status.",
+      "expected_trajectory": [
+        "cloud-sql__get_instance",
+        "cloud-sql__update_instance",
+        "cloud-sql__get_operation"
+      ],
+      "env": {
+        "GOOGLE_CLOUD_PROJECT": "astana-evaluation"
+      },
+      "kind": "tools",
+      "max_turns": 6
+    }
+  ]
+}
