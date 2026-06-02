@@ -22,6 +22,7 @@ _AGY_SECRET_PATH_RE = re.compile(
     r"^projects/[^/]+/secrets/[^/]+/versions/(\d+|latest)$"
 )
 
+
 def _fetch_agy_secret(path: str) -> str:
     """Returns the decoded payload of a Secret Manager version.
 
@@ -76,9 +77,13 @@ class AgyCliGenerator(QueryGenerator):
             if not session_id:
                 ctx_id = rpc_id_var.get()
                 session_id = ctx_id if ctx_id != "default" else "default"
-            self.fake_home = os.path.join("/tmp_sessions", session_id, "fake_home")
+            self.fake_home = os.path.join(
+                "/tmp_sessions", session_id, "fake_home"
+            )
         else:
-            self.fake_home = os.path.abspath(os.path.join(".venv", "fake_home_agy"))
+            self.fake_home = os.path.abspath(
+                os.path.join(".venv", "fake_home_agy")
+            )
 
         self.app_data_dir = os.path.join(self.fake_home, self.APP_DATA_SUBPATH)
         self.settings_path = os.path.join(self.app_data_dir, "settings.json")
@@ -314,7 +319,9 @@ class AgyCliGenerator(QueryGenerator):
             with open(path, "r") as f:
                 raw = f.read().strip()
         except OSError as e:
-            logging.warning("Failed to read real settings.json %s: %s", path, e)
+            logging.warning(
+                "Failed to read real settings.json %s: %s", path, e
+            )
             return {}
         if not raw:
             logging.info(
@@ -845,7 +852,8 @@ class AgyCliGenerator(QueryGenerator):
 
         calls = []          # ordered (call_dict, ts)
         result_for = {}     # call index -> (result_step, ts)
-        pending = collections.deque()  # call indices awaiting an adjacent result
+        # call indices awaiting an adjacent result
+        pending = collections.deque()
         response_text_parts = []
         turn_start_ts = None
         turn_end_ts = None
@@ -942,7 +950,8 @@ class AgyCliGenerator(QueryGenerator):
                 # prevent) crediting transcript lines an agent may have forged
                 # via shell-outs; the authoritative attach guarantee is the
                 # setup-time schema-cache check in ``_verify_mcp_runtime``.
-                if is_mcp and result_step.get("type") != self._AGY_MCP_RESULT_TYPE:
+                if (is_mcp and result_step.get("type")
+                        != self._AGY_MCP_RESULT_TYPE):
                     done = False
                 if done:
                     slot["success"] += 1
@@ -1043,10 +1052,14 @@ class AgyCliGenerator(QueryGenerator):
         except (KeyError, TypeError):
             return []
 
-    def safe_generate(self, cli_cmd: CLICommand) -> subprocess.CompletedProcess:
+    def safe_generate(
+        self, cli_cmd: CLICommand
+    ) -> subprocess.CompletedProcess:
         result = self.generate_internal(cli_cmd)
         if isinstance(result, str):
-            return subprocess.CompletedProcess(args=[], returncode=0, stdout=result)
+            return subprocess.CompletedProcess(
+                args=[], returncode=0, stdout=result
+            )
 
         if not result.stdout and result.returncode != 0:
             result.stderr += "\nError: Generator returned empty response."
