@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import subprocess
 import sys
 from unittest.mock import MagicMock, patch
 
@@ -105,6 +106,39 @@ def test_install_from_repo_git_url_clones_then_installs(mock_run, sandbox):
     assert list(calls[0].args[0]) == [
         "agy", "plugin", "install", "--", expected_clone,
     ]
+
+
+def test_clone_skill_repo_timeout_returns_none_and_clears_stale_dir(
+    mock_run, sandbox, caplog,
+):
+    """A clone that exceeds the timeout returns None (so the skill is simply
+    skipped) rather than propagating TimeoutExpired, and logs an error.
+
+    There is no cleanup of *this* attempt's partial dir on timeout -- the
+    only cleanup is the pre-clone rmtree, which clears a stale dir left by a
+    prior partial clone even when the current attempt then times out.
+    """
+    generator = AgyCliGenerator({})
+    workdir = os.path.join(generator.app_data_dir, ".skill_clones")
+    os.makedirs(workdir, exist_ok=True)
+
+    url = "https://github.com/example/agy-skill-pack.git"
+    # Leftover from a prior partial clone; pre-clone cleanup must remove it.
+    stale = os.path.join(workdir, "agy-skill-pack")
+    os.makedirs(stale)
+
+    mock_run.side_effect = subprocess.TimeoutExpired(
+        cmd="git clone", timeout=120
+    )
+
+    with caplog.at_level(logging.ERROR):
+        result = generator._clone_skill_repo(
+            url, workdir, generator._merged_env()
+        )
+
+    assert result is None
+    assert not os.path.exists(stale)
+    assert any("timed out" in r.getMessage() for r in caplog.records)
 
 
 def test_unsupported_skill_action_is_logged_not_executed(
@@ -671,6 +705,66 @@ def test_verify_mcp_runtime_skipped_without_mcp_servers(mock_run, sandbox):
     AgyCliGenerator({"setup": {"skills": []}})
 
     assert mock_run.call_count == 0
+
+
+def test_verify_mcp_runtime_unreadable_probe_log_does_not_mask_failure(
+    mock_run, sandbox,
+):
+    """If the probe log can't be read during fatal-marker enrichment, the
+    OSError is swallowed and the authoritative no-tools check still fires --
+    an unreadable log must never turn a real attach failure into a pass."""
+    config = {
+        "setup": {
+            "mcp_servers": {
+                "cloud-sql": {"serverUrl": "https://example.com/mcp"},
+            }
+        }
+    }
+
+    def fake_run(cmd, *args, **kwargs):
+        # Emit the probe "log" as a *directory* so the marker-scan open()
+        # raises IsADirectoryError (an OSError). No schema files are written,
+        # so the attach check must still fail.
+        log_dir = os.path.join(_local_app_data_dir(), "log")
+        os.makedirs(os.path.join(log_dir, "cli-probe.log"), exist_ok=True)
+        return MagicMock(returncode=0, stdout="", stderr="")
+
+    mock_run.side_effect = fake_run
+    with pytest.raises(RuntimeError, match="attached no tools"):
+        AgyCliGenerator(config)
+
+
+def test_translate_mcp_config_maps_httpurl_to_serverurl():
+    """The gemini-style ``httpUrl`` alias is rewritten to agy's ``serverUrl``
+    (a wrong URL field attaches a transportless server with zero tools)."""
+    out = AgyCliGenerator._translate_mcp_config({"httpUrl": "https://x/mcp"})
+
+    assert out == {"serverUrl": "https://x/mcp"}
+
+
+def test_translate_mcp_config_does_not_clobber_existing_serverurl():
+    """When ``serverUrl`` is already present, the canonical value wins and
+    the ``httpUrl`` alias is not mapped over it."""
+    out = AgyCliGenerator._translate_mcp_config(
+        {"httpUrl": "https://alias/mcp", "serverUrl": "https://canonical/mcp"}
+    )
+
+    assert out["serverUrl"] == "https://canonical/mcp"
+
+
+def test_translate_mcp_config_passes_native_fields_through_unchanged():
+    """stdio fields and other native agy schema keys pass through verbatim --
+    no Bearer-token injection or field rewriting (unlike claude_code)."""
+    cfg = {
+        "command": "npx",
+        "args": ["-y", "server"],
+        "env": {"K": "V"},
+        "authProviderType": "google_credentials",
+        "oauth": {"scopes": ["a", "b"]},
+        "headers": {"X": "Y"},
+    }
+
+    assert AgyCliGenerator._translate_mcp_config(dict(cfg)) == cfg
 
 
 def _written_settings(generator):
