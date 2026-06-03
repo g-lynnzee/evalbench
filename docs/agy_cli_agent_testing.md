@@ -265,8 +265,10 @@ setup:
     # Dict form: same, via an explicit target. Git URLs (scheme:// or
     # trailing .git) are cloned first, then the clone dir is installed;
     # local paths and marketplace specs are installed in place. `url:`
-    # is conventional; `path:` is accepted as a synonym. Append `#<tag>`
-    # to a git URL to pin a version.
+    # is conventional; `path:` is accepted as a synonym. Append
+    # `#<branch-or-tag>` to a git URL to pin a version -- the clone uses
+    # `git clone --branch`, which resolves branch and tag names only, not
+    # raw commit SHAs.
     - action: install_from_repo
       url: "https://github.com/gemini-cli-extensions/cloud-sql-postgresql.git#v1.2.3"
 ```
