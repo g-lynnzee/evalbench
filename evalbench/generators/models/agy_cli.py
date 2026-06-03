@@ -17,7 +17,9 @@ AGY_CLI = "agy"
 
 # Accepts a Secret Manager resource path with a numeric version or ``latest``.
 # Unlike the shared ``get_db_secret`` helper (numeric only), agy OAuth tokens
-# rotate, so ``latest`` is the common case.
+# rotate, so ``latest`` is the common case. Note: ``latest`` is resolved once,
+# at init time, and the fetched token is snapshotted into the sandboxed auth
+# files -- a mid-run rotation does not take effect for the live process.
 _AGY_SECRET_PATH_RE = re.compile(
     r"^projects/[^/]+/secrets/[^/]+/versions/(\d+|latest)$"
 )
@@ -69,6 +71,16 @@ class AgyCliGenerator(QueryGenerator):
     def __init__(self, querygenerator_config):
         super().__init__(querygenerator_config)
         self.name = "agy_cli"
+
+        # Fail fast if the binary is missing. Docker images install it; local
+        # runs must have it on PATH. Without this the failure surfaces late and
+        # cryptically -- and only at all when MCP servers are configured (the
+        # probe is the sole other FileNotFoundError site).
+        if shutil.which(AGY_CLI) is None:
+            raise RuntimeError(
+                f"'{AGY_CLI}' CLI not found on PATH. Install it (macOS/Linux): "
+                "curl -fsSL https://antigravity.google/cli/install.sh | bash"
+            )
 
         # Parity with gemini_cli_version/codex_cli_version/claude_code_version:
         # the evaluator reads this as agent_version. Unlike those (npm specs
