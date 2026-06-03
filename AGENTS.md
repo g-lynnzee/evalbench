@@ -109,10 +109,7 @@ When evaluating agentic frameworks that leverage external tools (e.g., Gemini CL
 |---|---|---|
 | **MCP Servers** | `gemini_cli`, `claude_code`, `codex_cli`, `agy_cli` | Remote HTTP/SSE or local stdio-based Model Context Protocol servers |
 | **Extensions** | `gemini_cli`, `claude_code`, `codex_cli` | GitHub-hosted plugin packages installed idempotently via CLI |
-| **Skills** | `gemini_cli`, `claude_code`, `codex_cli`, `agy_cli` | Local or registry skill packages enabled/linked in the sandboxed environment |
-
-> [!NOTE]
-> **agy_cli specifics:** MCP servers are configured by writing `~/.gemini/config/mcp_config.json` (under the `mcpServers` key); skills are delivered as **plugins** via `agy plugin install <target>` (a local dir or git repo, cloned first) and materialized under `~/.gemini/config/plugins/<name>/…/SKILL.md` — dropping `SKILL.md` folders on disk registers nothing. Tool-call data is read from the per-conversation JSONL transcript at `<appDataDir>/brain/<uuid>/.system_generated/logs/transcript.jsonl` (where `appDataDir` = `~/.gemini/antigravity-cli/`), since `agy` has no `--output-format` stream. The transcript does not carry token counts, so `token_consumption` scoring is degraded (zeros) for this generator. Auth uses agy's OAuth flow; interactive login must be completed once on the host before evals can run.
+| **Skills** | `gemini_cli`, `claude_code`, `codex_cli`, `agy_cli` | Skill packages installed into the sandboxed environment via each CLI's native mechanism (e.g. link/enable for gemini, `agy plugin install` for agy) |
 
 ---
 

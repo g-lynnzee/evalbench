@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import sys
 from unittest.mock import MagicMock, patch
@@ -13,6 +14,28 @@ from generators.models.agy_cli import AgyCliGenerator, CLICommand
 APP_DATA_SUBPATH = os.path.join(".gemini", "antigravity-cli")
 
 
+@pytest.fixture
+def sandbox(tmp_path, monkeypatch):
+    """Isolates HOME under a throwaway dir so the generator builds its sandbox
+    there instead of touching the real machine. Returns the host (real) home
+    path for tests that need to pre-seed host-side files (settings.json, an
+    on-disk oauth token, ...)."""
+    real_home = tmp_path / "real_home"
+    real_home.mkdir()
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("HOME", str(real_home))
+    return real_home
+
+
+@pytest.fixture
+def mock_run():
+    """Patches the generator's ``subprocess.run`` with a success-by-default
+    mock. Tests needing custom behavior set ``side_effect``."""
+    with patch("generators.models.agy_cli.subprocess.run") as m:
+        m.return_value = MagicMock(returncode=0, stdout="", stderr="")
+        yield m
+
+
 def _install_calls(mock_run):
     """Returns the ``agy plugin install`` subprocess calls captured."""
     return [
@@ -21,17 +44,8 @@ def _install_calls(mock_run):
     ]
 
 
-@patch('generators.models.agy_cli.subprocess.run')
-def test_setup_single_skill_string_runs_plugin_install(
-    mock_run, tmp_path, monkeypatch,
-):
+def test_setup_single_skill_string_runs_plugin_install(mock_run, sandbox):
     """A string entry is passed straight to ``agy plugin install``."""
-    real_home = tmp_path / "real_home"
-    real_home.mkdir()
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("HOME", str(real_home))
-    mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
-
     target = "cloud-sql-postgresql@gemini-cli-extensions"
     AgyCliGenerator({"setup": {"skills": [target]}})
 
@@ -40,33 +54,17 @@ def test_setup_single_skill_string_runs_plugin_install(
     assert list(calls[0].args[0]) == ["agy", "plugin", "install", target]
 
 
-@patch('generators.models.agy_cli.subprocess.run')
-def test_setup_multiple_skills_string_each_installed(
-    mock_run, tmp_path, monkeypatch,
-):
-    real_home = tmp_path / "real_home"
-    real_home.mkdir()
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("HOME", str(real_home))
-    mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
-
+def test_setup_multiple_skills_string_each_installed(mock_run, sandbox):
     AgyCliGenerator({"setup": {"skills": ["plugin-A", "plugin-B"]}})
 
     installed = [list(c.args[0])[-1] for c in _install_calls(mock_run)]
     assert installed == ["plugin-A", "plugin-B"]
 
 
-@patch('generators.models.agy_cli.subprocess.run')
 def test_install_from_repo_local_path_installs_directly(
-    mock_run, tmp_path, monkeypatch,
+    mock_run, sandbox, tmp_path,
 ):
     """A local plugin directory is installed in place -- no git clone."""
-    real_home = tmp_path / "real_home"
-    real_home.mkdir()
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("HOME", str(real_home))
-    mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
-
     local_dir = str(tmp_path / "my-plugin")
     generator = AgyCliGenerator({})
     generator._setup_skills(
@@ -83,17 +81,8 @@ def test_install_from_repo_local_path_installs_directly(
     assert list(calls[0].args[0]) == ["agy", "plugin", "install", local_dir]
 
 
-@patch('generators.models.agy_cli.subprocess.run')
-def test_install_from_repo_git_url_clones_then_installs(
-    mock_run, tmp_path, monkeypatch,
-):
+def test_install_from_repo_git_url_clones_then_installs(mock_run, sandbox):
     """A git URL is cloned first, then the clone dir is plugin-installed."""
-    real_home = tmp_path / "real_home"
-    real_home.mkdir()
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("HOME", str(real_home))
-    mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
-
     repo_url = "https://github.com/example/agy-skill-pack.git"
     generator = AgyCliGenerator({})
     generator._setup_skills(
@@ -119,45 +108,28 @@ def test_install_from_repo_git_url_clones_then_installs(
 
 
 def test_unsupported_skill_action_is_logged_not_executed(
-    tmp_path, monkeypatch, caplog,
+    mock_run, sandbox, caplog,
 ):
     """Legacy dict actions (link/enable/disable/uninstall) are not
     supported -- only string targets and install_from_repo are. Make sure
     they don't trigger subprocess calls and that a warning is emitted."""
-    real_home = tmp_path / "real_home"
-    real_home.mkdir()
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("HOME", str(real_home))
-
-    with patch('generators.models.agy_cli.subprocess.run') as mock_run:
-        generator = AgyCliGenerator({})
-        import logging
-        with caplog.at_level(logging.WARNING):
-            generator._setup_skills([
-                {"action": "link", "path": "/path/to/my-skill"},
-                {"action": "enable", "name": "my-skill"},
-            ])
+    generator = AgyCliGenerator({})
+    with caplog.at_level(logging.WARNING):
+        generator._setup_skills([
+            {"action": "link", "path": "/path/to/my-skill"},
+            {"action": "enable", "name": "my-skill"},
+        ])
 
     assert mock_run.call_count == 0
     assert any("Unsupported skill action" in r.message for r in caplog.records)
 
 
-def test_run_command_argv_shape(tmp_path, monkeypatch):
+def test_run_command_argv_shape(mock_run, sandbox):
     """``_run_agy_cli`` must build ``agy -p <prompt>
     --dangerously-skip-permissions`` -- no legacy flags."""
-    real_home = tmp_path / "real_home"
-    real_home.mkdir()
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("HOME", str(real_home))
-
     generator = AgyCliGenerator({})
-
-    with patch(
-        'generators.models.agy_cli.subprocess.run',
-    ) as mock_run:
-        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
-        cmd = CLICommand(cli="agy", prompt="hello world")
-        generator._run_agy_cli(cmd)
+    cmd = CLICommand(cli="agy", prompt="hello world")
+    generator._run_agy_cli(cmd)
 
     sent_argv = mock_run.call_args[0][0]
     assert sent_argv == [
@@ -165,20 +137,10 @@ def test_run_command_argv_shape(tmp_path, monkeypatch):
     ]
 
 
-def test_run_command_argv_shape_with_continue(tmp_path, monkeypatch):
-    real_home = tmp_path / "real_home"
-    real_home.mkdir()
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("HOME", str(real_home))
-
+def test_run_command_argv_shape_with_continue(mock_run, sandbox):
     generator = AgyCliGenerator({})
-
-    with patch(
-        'generators.models.agy_cli.subprocess.run',
-    ) as mock_run:
-        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
-        cmd = CLICommand(cli="agy", prompt="next turn", resume=True)
-        generator._run_agy_cli(cmd)
+    cmd = CLICommand(cli="agy", prompt="next turn", resume=True)
+    generator._run_agy_cli(cmd)
 
     sent_argv = mock_run.call_args[0][0]
     assert sent_argv == [
@@ -205,12 +167,7 @@ def _write_transcript_fixture(app_data_dir, cwd, conversation_id, steps):
             f.write(json.dumps(step) + "\n")
 
 
-def test_parse_transcript_extracts_tools_and_response(tmp_path, monkeypatch):
-    real_home = tmp_path / "real_home"
-    real_home.mkdir()
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("HOME", str(real_home))
-
+def test_parse_transcript_extracts_tools_and_response(sandbox):
     generator = AgyCliGenerator({})
     cwd = generator.fake_home
     conversation_id = "abc-123"
@@ -259,15 +216,10 @@ def test_parse_transcript_extracts_tools_and_response(tmp_path, monkeypatch):
     assert tools == ["list_dir"]
 
 
-def test_parse_transcript_uses_only_last_turn(tmp_path, monkeypatch):
+def test_parse_transcript_uses_only_last_turn(sandbox):
     """When ``--continue`` is used the transcript spans multiple turns;
     only the slice from the most-recent ``USER_INPUT`` onward should be
     reported."""
-    real_home = tmp_path / "real_home"
-    real_home.mkdir()
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("HOME", str(real_home))
-
     generator = AgyCliGenerator({})
     cwd = generator.fake_home
     conversation_id = "multi-turn-xyz"
@@ -330,14 +282,7 @@ def test_parse_transcript_uses_only_last_turn(tmp_path, monkeypatch):
     assert envelope["stats"]["tools"]["totalCalls"] == 1
 
 
-def test_parse_transcript_no_conversation_returns_fallback(
-    tmp_path, monkeypatch,
-):
-    real_home = tmp_path / "real_home"
-    real_home.mkdir()
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("HOME", str(real_home))
-
+def test_parse_transcript_no_conversation_returns_fallback(sandbox):
     generator = AgyCliGenerator({})
     envelope_json = generator._parse_transcript_jsonl(
         generator.fake_home, fallback_response="raw stdout text",
@@ -361,16 +306,11 @@ _REAL_MCP_CALL = {
 
 
 def test_parse_transcript_genuine_mcp_call_is_canonicalized_and_succeeds(
-    tmp_path, monkeypatch,
+    sandbox,
 ):
     """A real ``call_mcp_tool`` paired with an ``MCP_TOOL`` result step is
     canonicalized to ``<server>__<tool>``, its args are unwrapped, and it
     counts as a success."""
-    real_home = tmp_path / "real_home"
-    real_home.mkdir()
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("HOME", str(real_home))
-
     generator = AgyCliGenerator({})
     cwd = generator.fake_home
     conversation_id = "mcp-genuine"
@@ -415,17 +355,10 @@ def test_parse_transcript_genuine_mcp_call_is_canonicalized_and_succeeds(
     assert slot["parameters"] == [{"project": "astana-evaluation"}]
 
 
-def test_parse_transcript_forged_mcp_call_without_result_is_failed(
-    tmp_path, monkeypatch,
-):
+def test_parse_transcript_forged_mcp_call_without_result_is_failed(sandbox):
     """A ``call_mcp_tool`` line with no agy-runtime ``MCP_TOOL`` result
     step -- the cheapest transcript line an agent could forge via a
     shell-out -- is not credited as a successful MCP execution."""
-    real_home = tmp_path / "real_home"
-    real_home.mkdir()
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("HOME", str(real_home))
-
     generator = AgyCliGenerator({})
     cwd = generator.fake_home
     conversation_id = "mcp-forged"
@@ -464,17 +397,10 @@ def test_parse_transcript_forged_mcp_call_without_result_is_failed(
     assert envelope["stats"]["tools"]["totalSuccess"] == 0
 
 
-def test_parse_transcript_mcp_call_with_non_mcp_result_is_failed(
-    tmp_path, monkeypatch,
-):
+def test_parse_transcript_mcp_call_with_non_mcp_result_is_failed(sandbox):
     """A ``call_mcp_tool`` paired with a non-``MCP_TOOL`` result step (e.g.
     a real ``RUN_COMMAND`` step the agent produced) is not credited as an
     MCP success -- only agy's dedicated MCP_TOOL result proves execution."""
-    real_home = tmp_path / "real_home"
-    real_home.mkdir()
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("HOME", str(real_home))
-
     generator = AgyCliGenerator({})
     cwd = generator.fake_home
     conversation_id = "mcp-wrong-result"
@@ -509,7 +435,7 @@ def test_parse_transcript_mcp_call_with_non_mcp_result_is_failed(
 
 
 def test_parse_transcript_adjacency_pairing_does_not_misattribute_results(
-    tmp_path, monkeypatch,
+    sandbox,
 ):
     """A call that produced no result of its own must not steal a *later*
     call's result. Strict next-step adjacency keeps each result with the
@@ -520,11 +446,6 @@ def test_parse_transcript_adjacency_pairing_does_not_misattribute_results(
     native ``run_command`` would consume the later RUN_COMMAND result, both
     masking the forgery's failure and stripping the real call of its result.
     """
-    real_home = tmp_path / "real_home"
-    real_home.mkdir()
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("HOME", str(real_home))
-
     generator = AgyCliGenerator({})
     cwd = generator.fake_home
     conversation_id = "adjacency-pairing"
@@ -572,15 +493,10 @@ def test_parse_transcript_adjacency_pairing_does_not_misattribute_results(
 
 
 def test_parse_transcript_interleaved_native_and_mcp_calls_pair_correctly(
-    tmp_path, monkeypatch,
+    sandbox,
 ):
     """Native call + result, then a genuine MCP call + MCP_TOOL result, all
     pair to the right call under adjacency."""
-    real_home = tmp_path / "real_home"
-    real_home.mkdir()
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("HOME", str(real_home))
-
     generator = AgyCliGenerator({})
     cwd = generator.fake_home
     conversation_id = "interleaved"
@@ -646,23 +562,22 @@ def _write_mcp_schemas(app_data_dir, server, tools):
 
 
 def _local_app_data_dir():
+    # Mirrors AgyCliGenerator's local-run sandbox (.venv/fake_home_agy,
+    # resolved against cwd). The MCP probe fires inside __init__ -- before a
+    # generator instance exists -- so verify-MCP tests can't read the path off
+    # the generator and recompute it here. Lands inside the per-test tmp dir
+    # only because the `sandbox` fixture chdirs there; keep in sync with
+    # AgyCliGenerator.fake_home.
     return os.path.join(
         os.path.abspath(os.path.join(".venv", "fake_home_agy")),
         APP_DATA_SUBPATH,
     )
 
 
-def test_verify_mcp_runtime_raises_when_no_tools_attach(
-    tmp_path, monkeypatch,
-):
+def test_verify_mcp_runtime_raises_when_no_tools_attach(mock_run, sandbox):
     """A server that attaches zero tools (the silent failure mode caused
     by a wrong URL field) must raise RuntimeError so the eval doesn't
     degrade to gcloud shell-outs. The probe writes no schema files."""
-    real_home = tmp_path / "real_home"
-    real_home.mkdir()
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("HOME", str(real_home))
-
     config = {
         "setup": {
             "mcp_servers": {
@@ -676,24 +591,14 @@ def test_verify_mcp_runtime_raises_when_no_tools_attach(
         _write_probe_log(_local_app_data_dir(), "cli-probe.log", "I startup\n")
         return MagicMock(returncode=0, stdout="", stderr="")
 
-    with patch(
-        'generators.models.agy_cli.subprocess.run',
-        side_effect=fake_run,
-    ):
-        with pytest.raises(RuntimeError, match="attached no tools"):
-            AgyCliGenerator(config)
+    mock_run.side_effect = fake_run
+    with pytest.raises(RuntimeError, match="attached no tools"):
+        AgyCliGenerator(config)
 
 
-def test_verify_mcp_runtime_includes_fatal_markers_in_error(
-    tmp_path, monkeypatch,
-):
+def test_verify_mcp_runtime_includes_fatal_markers_in_error(mock_run, sandbox):
     """When attach fails AND the probe log has a fatal marker, the marker
     is surfaced in the error for diagnosis."""
-    real_home = tmp_path / "real_home"
-    real_home.mkdir()
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("HOME", str(real_home))
-
     config = {
         "setup": {
             "mcp_servers": {
@@ -710,23 +615,13 @@ def test_verify_mcp_runtime_includes_fatal_markers_in_error(
         )
         return MagicMock(returncode=0, stdout="", stderr="")
 
-    with patch(
-        'generators.models.agy_cli.subprocess.run',
-        side_effect=fake_run,
-    ):
-        with pytest.raises(RuntimeError, match="Account ineligible"):
-            AgyCliGenerator(config)
+    mock_run.side_effect = fake_run
+    with pytest.raises(RuntimeError, match="Account ineligible"):
+        AgyCliGenerator(config)
 
 
-def test_verify_mcp_runtime_passes_when_tools_attach(
-    tmp_path, monkeypatch,
-):
+def test_verify_mcp_runtime_passes_when_tools_attach(mock_run, sandbox):
     """When the probe populates the tool-schema cache, setup completes."""
-    real_home = tmp_path / "real_home"
-    real_home.mkdir()
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("HOME", str(real_home))
-
     config = {
         "setup": {
             "mcp_servers": {
@@ -742,25 +637,15 @@ def test_verify_mcp_runtime_passes_when_tools_attach(
         )
         return MagicMock(returncode=0, stdout="", stderr="")
 
-    with patch(
-        'generators.models.agy_cli.subprocess.run',
-        side_effect=fake_run,
-    ):
-        gen = AgyCliGenerator(config)
+    mock_run.side_effect = fake_run
+    gen = AgyCliGenerator(config)
 
     assert gen.name == "agy_cli"
 
 
-def test_verify_mcp_runtime_clears_stale_schema_cache(
-    tmp_path, monkeypatch,
-):
+def test_verify_mcp_runtime_clears_stale_schema_cache(mock_run, sandbox):
     """A stale schema dir from a previous run must not cause a false pass:
     if this run's probe writes nothing, verification must still fail."""
-    real_home = tmp_path / "real_home"
-    real_home.mkdir()
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("HOME", str(real_home))
-
     # Pre-seed a stale cache before the generator runs.
     _write_mcp_schemas(_local_app_data_dir(), "cloud-sql", ["old_tool"])
 
@@ -776,27 +661,14 @@ def test_verify_mcp_runtime_clears_stale_schema_cache(
         # Probe attaches nothing this run.
         return MagicMock(returncode=0, stdout="", stderr="")
 
-    with patch(
-        'generators.models.agy_cli.subprocess.run',
-        side_effect=fake_run,
-    ):
-        with pytest.raises(RuntimeError, match="attached no tools"):
-            AgyCliGenerator(config)
+    mock_run.side_effect = fake_run
+    with pytest.raises(RuntimeError, match="attached no tools"):
+        AgyCliGenerator(config)
 
 
-def test_verify_mcp_runtime_skipped_without_mcp_servers(
-    tmp_path, monkeypatch,
-):
+def test_verify_mcp_runtime_skipped_without_mcp_servers(mock_run, sandbox):
     """No MCP servers configured -> no probe, no subprocess call."""
-    real_home = tmp_path / "real_home"
-    real_home.mkdir()
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("HOME", str(real_home))
-
-    with patch(
-        'generators.models.agy_cli.subprocess.run',
-    ) as mock_run:
-        AgyCliGenerator({"setup": {"skills": []}})
+    AgyCliGenerator({"setup": {"skills": []}})
 
     assert mock_run.call_count == 0
 
@@ -806,57 +678,41 @@ def _written_settings(generator):
         return json.load(f)
 
 
-def test_config_model_label_written_into_settings(tmp_path, monkeypatch):
+def test_config_model_label_written_into_settings(sandbox):
     """A configured `model` (an agy UI label) is written into the `model`
     key of settings.json verbatim."""
-    real_home = tmp_path / "real_home"
-    real_home.mkdir()
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("HOME", str(real_home))
-
     generator = AgyCliGenerator({"model": "Gemini 3.1 Pro (High)"})
 
     assert _written_settings(generator).get("model") == "Gemini 3.1 Pro (High)"
 
 
-def test_model_falls_back_to_real_settings(tmp_path, monkeypatch):
+def test_model_falls_back_to_real_settings(sandbox):
     """With no model in config, the host's real settings.json model (set via
     the agy UI `/model` command) is inherited."""
-    real_home = tmp_path / "real_home"
-    real_app_data = real_home / APP_DATA_SUBPATH
+    real_app_data = sandbox / APP_DATA_SUBPATH
     real_app_data.mkdir(parents=True)
     with open(real_app_data / "settings.json", "w") as f:
         json.dump({"model": "Gemini 3.5 Flash (Medium)"}, f)
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("HOME", str(real_home))
 
     generator = AgyCliGenerator({})
 
     assert _written_settings(generator).get("model") == "Gemini 3.5 Flash (Medium)"
 
 
-def test_config_model_overrides_real_settings(tmp_path, monkeypatch):
+def test_config_model_overrides_real_settings(sandbox):
     """An explicit config model takes precedence over the real settings."""
-    real_home = tmp_path / "real_home"
-    real_app_data = real_home / APP_DATA_SUBPATH
+    real_app_data = sandbox / APP_DATA_SUBPATH
     real_app_data.mkdir(parents=True)
     with open(real_app_data / "settings.json", "w") as f:
         json.dump({"model": "Gemini 3.5 Flash (Medium)"}, f)
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("HOME", str(real_home))
 
     generator = AgyCliGenerator({"model": "Gemini 3.1 Pro (High)"})
 
     assert _written_settings(generator).get("model") == "Gemini 3.1 Pro (High)"
 
 
-def test_no_model_key_when_unset(tmp_path, monkeypatch):
+def test_no_model_key_when_unset(sandbox):
     """No model anywhere -> no model key is written to settings.json."""
-    real_home = tmp_path / "real_home"
-    real_home.mkdir()
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("HOME", str(real_home))
-
     generator = AgyCliGenerator({})
 
     assert "model" not in _written_settings(generator)
@@ -880,26 +736,16 @@ def _stats_models(generator, cwd):
     return envelope["stats"]["models"]
 
 
-def test_models_bucket_keyed_by_configured_model(tmp_path, monkeypatch):
+def test_models_bucket_keyed_by_configured_model(sandbox):
     """The stats models bucket is keyed by the configured model label."""
-    real_home = tmp_path / "real_home"
-    real_home.mkdir()
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("HOME", str(real_home))
-
     generator = AgyCliGenerator({"model": "Gemini 3.1 Pro (High)"})
     assert "Gemini 3.1 Pro (High)" in _stats_models(
         generator, generator.fake_home
     )
 
 
-def test_models_bucket_falls_back_to_agy(tmp_path, monkeypatch):
+def test_models_bucket_falls_back_to_agy(sandbox):
     """Without a configured model, the bucket falls back to 'agy'."""
-    real_home = tmp_path / "real_home"
-    real_home.mkdir()
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("HOME", str(real_home))
-
     generator = AgyCliGenerator({})
     assert "agy" in _stats_models(generator, generator.fake_home)
 
@@ -909,15 +755,9 @@ _ID_SECRET = "projects/p/secrets/AGY_INSTALLATION_ID/versions/latest"
 
 
 @patch('generators.models.agy_cli._fetch_agy_secret')
-def test_oauth_token_seeded_from_secret_manager(
-    mock_fetch, tmp_path, monkeypatch,
-):
+def test_oauth_token_seeded_from_secret_manager(mock_fetch, sandbox):
     """A configured token secret is fetched and written into the sandbox
     appDataDir, without any token existing on the host's disk."""
-    real_home = tmp_path / "real_home"
-    real_home.mkdir()
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("HOME", str(real_home))
     mock_fetch.return_value = '{"auth_method":"x","token":{}}'
 
     generator = AgyCliGenerator({"agy_oauth_token_secret": _SECRET})
@@ -929,18 +769,13 @@ def test_oauth_token_seeded_from_secret_manager(
 
 
 @patch('generators.models.agy_cli._fetch_agy_secret')
-def test_secret_takes_precedence_over_disk_mirror(
-    mock_fetch, tmp_path, monkeypatch,
-):
+def test_secret_takes_precedence_over_disk_mirror(mock_fetch, sandbox):
     """When a token secret is configured, the host's on-disk token is not
     used -- the Secret Manager payload wins."""
-    real_home = tmp_path / "real_home"
-    real_app_data = real_home / APP_DATA_SUBPATH
+    real_app_data = sandbox / APP_DATA_SUBPATH
     real_app_data.mkdir(parents=True)
     with open(real_app_data / "antigravity-oauth-token", "w") as f:
         f.write("STALE_DISK_TOKEN")
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("HOME", str(real_home))
     mock_fetch.return_value = "FRESH_SECRET_TOKEN"
 
     generator = AgyCliGenerator({"agy_oauth_token_secret": _SECRET})
@@ -951,14 +786,8 @@ def test_secret_takes_precedence_over_disk_mirror(
 
 
 @patch('generators.models.agy_cli._fetch_agy_secret')
-def test_required_token_secret_failure_raises(
-    mock_fetch, tmp_path, monkeypatch,
-):
+def test_required_token_secret_failure_raises(mock_fetch, sandbox):
     """A failure fetching the (required) token secret is fatal."""
-    real_home = tmp_path / "real_home"
-    real_home.mkdir()
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("HOME", str(real_home))
     mock_fetch.side_effect = RuntimeError("boom")
 
     with pytest.raises(RuntimeError):
@@ -966,16 +795,9 @@ def test_required_token_secret_failure_raises(
 
 
 @patch('generators.models.agy_cli._fetch_agy_secret')
-def test_missing_installation_id_secret_is_non_fatal(
-    mock_fetch, tmp_path, monkeypatch,
-):
+def test_missing_installation_id_secret_is_non_fatal(mock_fetch, sandbox):
     """A failure fetching the (optional) installation_id secret is logged,
     not fatal, and does not block the token seed."""
-    real_home = tmp_path / "real_home"
-    real_home.mkdir()
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("HOME", str(real_home))
-
     def _fetch(path):
         if path == _ID_SECRET:
             raise RuntimeError("boom")
