@@ -25,6 +25,12 @@ RUN curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --dearmor -
 # directory passed via --dir. The installer exposes no version pinning, but the
 # binary self-updates in the background; AGY_CLI_DISABLE_AUTO_UPDATE freezes it
 # to the build installed here so a run's agy version stays fixed for the image.
+#
+# Trust model: unlike the GPG-keyed apt repos above, this is `curl | sh` with
+# no SHA pin of the install script itself (trust-on-first-use). The script body
+# is mutable upstream so pinning its hash would break builds on every change;
+# trust rests on HTTPS to the Google-owned domain, and the installer in turn
+# SHA-512-verifies the binary it fetches. Accepted for this internal tool.
 ENV AGY_CLI_DISABLE_AUTO_UPDATE=true
 RUN curl -fsSL https://antigravity.google/cli/install.sh | sh -s -- --dir /usr/local/bin
 
