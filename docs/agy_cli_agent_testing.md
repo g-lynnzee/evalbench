@@ -244,6 +244,15 @@ with the offending server name rather than silently degrading. See
 
 ### Skills
 
+> [!NOTE]
+> The field is named `setup.skills` for parity with the `claude_code` and
+> `codex_cli` harnesses, which use the same key. For agy each entry is
+> installed as a **plugin** (`agy plugin install`), and a plugin bundle may
+> carry skills *and* its own MCP servers. The separate top-level
+> `setup.mcp_servers` block is for attaching a **standalone** MCP server (by
+> URL/stdio) that is not packaged in a plugin -- the two are distinct attach
+> paths and are configured independently.
+
 Configured under `setup.skills`. Skills are delivered via **plugins**:
 verified against agy v1.0.3, `agy plugin install <target>` reads a plugin
 manifest (Claude/Gemini/Codex formats), processes any bundled skills,
