@@ -21,6 +21,11 @@ env:
   CLOUD_SQL_POSTGRES_PASSWORD: <password>
   CLOUD_SQL_POSTGRES_IP_TYPE: "PUBLIC"
 setup:
+  # `skills` is named for parity with the claude_code/codex_cli harnesses.
+  # For agy each entry installs a *plugin* (`agy plugin install`), which may
+  # bundle both skills and its own MCP servers. To attach a standalone MCP
+  # server not packaged in a plugin, use a separate top-level `mcp_servers`
+  # block instead.
   skills:
     - action: install_from_repo
       path: "https://github.com/gemini-cli-extensions/cloud-sql-postgresql.git"
