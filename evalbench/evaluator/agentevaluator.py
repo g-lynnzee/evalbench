@@ -10,7 +10,7 @@ from generators.models import get_generator
 from generators.models.gemini_cli import GeminiCliGenerator
 from generators.models.claude_code import ClaudeCodeGenerator
 from generators.models.codex_cli import CodexCliGenerator
-from generators.models.agy_cli import AgyCliGenerator, AGY_CLI
+from generators.models.agy_cli import AgyCliGenerator
 from mp import mprunner
 from work.agentgenwork import AgentGenWork
 from evaluator.simulateduser import SimulatedUser
@@ -45,7 +45,7 @@ class AgentEvaluator:
         elif isinstance(self.generator, CodexCliGenerator):
             self.agent_version = self.generator.codex_cli_version
         elif isinstance(self.generator, AgyCliGenerator):
-            self.agent_version = AGY_CLI
+            self.agent_version = self.generator.agy_cli_version
         else:
             raise ValueError(
                 f"AgentEvaluator only supports gemini_cli, claude_code, "

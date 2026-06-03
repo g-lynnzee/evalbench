@@ -70,6 +70,13 @@ class AgyCliGenerator(QueryGenerator):
         super().__init__(querygenerator_config)
         self.name = "agy_cli"
 
+        # Parity with gemini_cli_version/codex_cli_version/claude_code_version:
+        # the evaluator reads this as agent_version. Unlike those (npm specs
+        # resolved via `npm exec`), agy has no version pinning and the value is
+        # also the binary executed directly, so it is fixed to the bare command
+        # name and is intentionally not config-overridable.
+        self.agy_cli_version = AGY_CLI
+
         self.env = querygenerator_config.get("env") or {}
 
         # Top-level `model` key. agy exposes no --model flag and reads no
@@ -611,7 +618,16 @@ class AgyCliGenerator(QueryGenerator):
         logging.info("agy registered plugins: %s", names)
 
     def _clone_skill_repo(self, url: str, workdir: str, env: dict):
-        """Clones a skill repo. Supports ``<url>#<tag>`` pinning.
+        """Clones a skill repo. Supports ``<url>#<ref>`` pinning where
+        ``<ref>`` is a branch or tag name.
+
+        Pinning is implemented with ``git clone --depth 1 --branch <ref>``,
+        which accepts branch and tag names only -- a raw commit SHA is not a
+        valid ``--branch`` argument and will fail the clone (git reports the
+        ref as not found). Fetching an arbitrary SHA is intentionally not
+        supported: a shallow fetch-by-SHA needs server-side
+        ``uploadpack.allowAnySHA1InWant``, which common hosts (e.g. GitHub)
+        do not enable. Pin to a tag (or branch), not a commit SHA.
 
         Returns the clone directory on success, or None on failure.
         """
