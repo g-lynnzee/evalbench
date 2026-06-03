@@ -137,10 +137,12 @@ def canonicalize_gemini_tool_name(name: str) -> str:
 # must unwrap those args rather than pattern-match the name.
 _AGY_MCP_WRAPPER = "call_mcp_tool"
 
-# Arg-key variants for robustness against jsonschema casing differences
-# (Go field ``ServerName`` may surface as ServerName/serverName/server_name).
-_AGY_SERVER_KEYS = ("ServerName", "serverName", "server_name", "server")
-_AGY_TOOL_KEYS = ("ToolName", "toolName", "tool_name", "tool")
+# The v1.0.3 schema is ``{ServerName, ToolName, Arguments}``. The Go struct
+# (confirmed in the agy binary) carries no ``json:`` tags -- only
+# ``jsonschema:"required"`` / ``jsonschema_description`` -- so the JSON property
+# names are exactly the Go field names. There are no casing variants to handle.
+_AGY_SERVER_KEY = "ServerName"
+_AGY_TOOL_KEY = "ToolName"
 
 
 def _agy_decode_scalar(value) -> str:
@@ -172,8 +174,8 @@ def parse_agy_mcp_tool_call(name: str, args: Optional[dict]):
     """
     if name != _AGY_MCP_WRAPPER or not isinstance(args, dict):
         return None
-    server = next((args[k] for k in _AGY_SERVER_KEYS if args.get(k)), None)
-    tool = next((args[k] for k in _AGY_TOOL_KEYS if args.get(k)), None)
+    server = args.get(_AGY_SERVER_KEY)
+    tool = args.get(_AGY_TOOL_KEY)
     if not server or not tool:
         return None
     return _agy_decode_scalar(server), _agy_decode_scalar(tool)

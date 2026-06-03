@@ -161,13 +161,15 @@ class ParseAgyMcpToolCallTest(unittest.TestCase):
             ("alloydb", "create_user"),
         )
 
-    def test_snake_case_keys_fallback(self):
-        self.assertEqual(
+    def test_only_canonical_keys_are_accepted(self):
+        # The agy v1.0.3 schema uses exactly ``ServerName``/``ToolName`` (no
+        # ``json:`` tags, so the Go field names are the property names). Any
+        # other casing is not a real agy key and must not be accepted.
+        self.assertIsNone(
             parse_agy_mcp_tool_call(
                 "call_mcp_tool",
                 {"server_name": "cloud-sql", "tool_name": "get_instance"},
-            ),
-            ("cloud-sql", "get_instance"),
+            )
         )
 
     def test_native_tool_is_not_mcp(self):
