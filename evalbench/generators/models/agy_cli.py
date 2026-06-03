@@ -70,6 +70,44 @@ class AgyCliGenerator(QueryGenerator):
         super().__init__(querygenerator_config)
         self.name = "agy_cli"
 
+        self.env = querygenerator_config.get("env") or {}
+
+        # Top-level `model` key. agy exposes no --model flag and reads no
+        # model env var, so the model is selected by writing it into
+        # settings.json -- see _initialize_settings_file. The value must be
+        # the exact agy UI label (e.g. "Gemini 3.1 Pro (High)"), not an API
+        # id; an unrecognized value is silently ignored and agy falls back
+        # to its default model.
+        self.model = querygenerator_config.get("model")
+
+        # Optional Secret Manager sources for agy's auth files. When set, they
+        # take precedence over mirroring from the host's real appDataDir -- the
+        # canonical path for CI, where there is no interactive login on disk.
+        # Values are Secret Manager resource paths
+        # (projects/.../secrets/.../versions/<N|latest>), parallel to codex's
+        # openai_api_key_secret.
+        self.oauth_token_secret = querygenerator_config.get(
+            "agy_oauth_token_secret"
+        )
+        self.installation_id_secret = querygenerator_config.get(
+            "agy_installation_id_secret"
+        )
+
+        # Order is load-bearing: paths/dirs must exist before settings and
+        # auth write into them, and self.env must carry HOME before auth
+        # resolves ADC. Keep these calls in sequence.
+        self._init_paths(querygenerator_config)
+        self.env["HOME"] = self.fake_home
+        self._initialize_settings_file()
+        self._setup_auth()
+
+        self.setup_config = querygenerator_config.get("setup", {})
+        if self.setup_config:
+            self._setup_tools()
+
+    def _init_paths(self, querygenerator_config):
+        """Resolves the sandbox ``HOME`` and all derived agy paths, and
+        creates the directories agy will read/write."""
         self.real_home = os.environ.get("HOME", os.path.expanduser("~"))
 
         if sys.argv[0].endswith("eval_server.py"):
@@ -99,31 +137,9 @@ class AgyCliGenerator(QueryGenerator):
         os.makedirs(os.path.dirname(self.settings_path), exist_ok=True)
         os.makedirs(self.config_dir, exist_ok=True)
 
-        self.env = querygenerator_config.get("env") or {}
-        self.env["HOME"] = self.fake_home
-
-        # Top-level `model` key. agy exposes no --model flag and reads no
-        # model env var, so the model is selected by writing it into
-        # settings.json -- see _initialize_settings_file. The value must be
-        # the exact agy UI label (e.g. "Gemini 3.1 Pro (High)"), not an API
-        # id; an unrecognized value is silently ignored and agy falls back
-        # to its default model.
-        self.model = querygenerator_config.get("model")
-
-        # Optional Secret Manager sources for agy's auth files. When set, they
-        # take precedence over mirroring from the host's real appDataDir -- the
-        # canonical path for CI, where there is no interactive login on disk.
-        # Values are Secret Manager resource paths
-        # (projects/.../secrets/.../versions/<N|latest>), parallel to codex's
-        # openai_api_key_secret.
-        self.oauth_token_secret = querygenerator_config.get(
-            "agy_oauth_token_secret"
-        )
-        self.installation_id_secret = querygenerator_config.get(
-            "agy_installation_id_secret"
-        )
-
-        self._initialize_settings_file()
+    def _setup_auth(self):
+        """Seeds agy's OAuth state into the sandbox and wires up gcloud ADC
+        so the sandboxed CLI authenticates without an interactive login."""
         self._mirror_agy_auth_state()
 
         adc_path = self.env.get("GOOGLE_APPLICATION_CREDENTIALS")
@@ -150,10 +166,6 @@ class AgyCliGenerator(QueryGenerator):
             self.env["CLOUDSDK_CONFIG"] = os.path.join(
                 self.real_home, ".config", "gcloud"
             )
-
-        self.setup_config = querygenerator_config.get("setup", {})
-        if self.setup_config:
-            self._setup()
 
     def _mirror_agy_auth_state(self):
         """Seeds agy's OAuth token + installation id into the sandboxed
@@ -336,7 +348,7 @@ class AgyCliGenerator(QueryGenerator):
             )
             return {}
 
-    def _setup(self):
+    def _setup_tools(self):
         """Performs initial setup for agy CLI."""
         mcp_servers_config = self.setup_config.get("mcp_servers", {})
         self._setup_mcp_servers(mcp_servers_config)
@@ -621,13 +633,13 @@ class AgyCliGenerator(QueryGenerator):
             )
             if result.returncode != 0:
                 logging.error(
-                    f"Failed to clone repo '{url}': {result.stderr.strip()}"
+                    "Failed to clone repo '%s': %s", url, result.stderr.strip()
                 )
                 return None
-            logging.info(f"Cloned agy skill repo '{url}' to {clone_target}")
+            logging.info("Cloned agy skill repo '%s' to %s", url, clone_target)
             return clone_target
         except subprocess.TimeoutExpired:
-            logging.error(f"Cloning repo '{url}' timed out")
+            logging.error("Cloning repo '%s' timed out", url)
             return None
 
     def _setup_mcp_servers(self, mcp_servers_config: dict):
@@ -661,11 +673,11 @@ class AgyCliGenerator(QueryGenerator):
 
         existing = current_config.setdefault("mcpServers", {})
         for stale in [k for k in existing if k not in mcp_servers_config]:
-            logging.info(f"Removing stale MCP server configuration: {stale}")
+            logging.info("Removing stale MCP server configuration: %s", stale)
             del existing[stale]
         for server_name, config in mcp_servers_config.items():
             existing[server_name] = self._translate_mcp_config(dict(config))
-            logging.info(f"Configured MCP server: {server_name}")
+            logging.info("Configured MCP server: %s", server_name)
 
         with open(self.mcp_config_path, "w") as f:
             json.dump(current_config, f, indent=2)
@@ -751,9 +763,9 @@ class AgyCliGenerator(QueryGenerator):
                 result.stdout = self._parse_transcript_jsonl(
                     cwd, fallback_response=result.stdout or "",
                 )
-            except Exception as e:
-                logging.warning(
-                    "Failed to parse agy transcript for cwd=%s: %s", cwd, e,
+            except Exception:
+                logging.exception(
+                    "Failed to parse agy transcript for cwd=%s", cwd,
                 )
 
         return result
@@ -1020,7 +1032,7 @@ class AgyCliGenerator(QueryGenerator):
         try:
             return json.loads(stdout)
         except json.JSONDecodeError:
-            logging.error(f"Failed to parse JSON response: {stdout[:100]}...")
+            logging.error("Failed to parse JSON response: %s...", stdout[:100])
             return {}
 
     def extract_tools(self, stdout: str) -> list:
