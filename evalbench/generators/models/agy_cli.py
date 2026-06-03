@@ -581,8 +581,16 @@ class AgyCliGenerator(QueryGenerator):
         return ""
 
     def _install_agy_plugin(self, target: str, env: dict) -> bool:
-        """Runs ``agy plugin install <target>``; returns True on success."""
-        cmd = [AGY_CLI, "plugin", "install", target]
+        """Runs ``agy plugin install <target>``; returns True on success.
+
+        The ``--`` end-of-options delimiter precedes ``target`` so a
+        config-supplied value beginning with ``--`` is treated as the
+        positional install target rather than parsed as a flag. (There is no
+        shell-injection risk -- this is an argv list, not a shell string --
+        but the delimiter keeps a stray ``--`` value from changing the
+        command's meaning.)
+        """
+        cmd = [AGY_CLI, "plugin", "install", "--", target]
         result = self._execute_cli_command(cmd, env=env, cwd=self.fake_home)
         if result.returncode != 0:
             logging.error(
