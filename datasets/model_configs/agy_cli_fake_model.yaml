@@ -1,3 +1,6 @@
+# NOTE: the --config arg below points at THIS file's own path.
+# If you rename/move this file, update that path too, or the
+# fake MCP server will fail to load its tool definitions.
 generator: agy_cli
 env:
   GOOGLE_CLOUD_PROJECT: "example-project"
