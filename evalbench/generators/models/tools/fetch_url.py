@@ -110,7 +110,13 @@ def fetch_url(args: Dict[str, Any]) -> str:
             extractor.feed(text)
             text = extractor.text()
         except Exception:
-            pass
+            # HTML stripping is best-effort: on a malformed document we
+            # fall back to the raw decoded body so the judge still has
+            # *something* to reason about.
+            logging.debug(
+                "fetch_url HTML extraction failed; falling back to raw text",
+                exc_info=True,
+            )
 
     if truncated:
         text += f"\n\n[truncated at {_MAX_BYTES} bytes]"

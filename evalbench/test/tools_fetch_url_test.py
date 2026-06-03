@@ -5,8 +5,6 @@ import sys
 import urllib.error
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from generators.models.tools.fetch_url import fetch_url  # noqa: E402

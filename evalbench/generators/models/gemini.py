@@ -168,3 +168,7 @@ class GeminiGenerator(QueryGenerator):
                     attempt + 1,
                 )
                 time.sleep(2 ** attempt * 2)
+        # Unreachable: every iteration either returns or, on the final
+        # attempt, raises. Asserted explicitly so static analyzers do not
+        # flag the implicit None fallthrough.
+        raise RuntimeError("unreachable: _call_generate_content retry loop")
