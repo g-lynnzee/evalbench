@@ -1,6 +1,6 @@
 generator: agy_cli
 env:
-  GOOGLE_CLOUD_PROJECT: "astana-evaluation"
+  GOOGLE_CLOUD_PROJECT: "example-project"
   GOOGLE_CLOUD_LOCATION: "us-central1"
   GOOGLE_GENAI_USE_VERTEXAI: "true"
 setup:

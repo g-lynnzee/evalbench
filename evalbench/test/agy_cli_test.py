@@ -330,7 +330,7 @@ def test_parse_transcript_no_conversation_returns_fallback(sandbox):
 _REAL_MCP_CALL = {
     "name": "call_mcp_tool",
     "args": {
-        "Arguments": '{"project":"astana-evaluation"}',
+        "Arguments": '{"project":"example-project"}',
         "ServerName": '"cloud-sql"',
         "ToolName": '"list_instances"',
         "toolAction": '"Listing Cloud SQL instances"',
@@ -386,7 +386,7 @@ def test_parse_transcript_genuine_mcp_call_is_canonicalized_and_succeeds(
     assert slot["success"] == 1
     assert slot["fail"] == 0
     # The wrapper envelope is unwrapped to the real MCP arguments.
-    assert slot["parameters"] == [{"project": "astana-evaluation"}]
+    assert slot["parameters"] == [{"project": "example-project"}]
 
 
 def test_parse_transcript_forged_mcp_call_without_result_is_failed(sandbox):
