@@ -14,7 +14,9 @@ generator: agy_cli
 model: "Gemini 3.1 Pro (High)"
 
 env:
-  GOOGLE_CLOUD_PROJECT: "astana-evaluation"
+  # Set to your project, or export EVAL_GCP_PROJECT_ID and keep the !ENV form.
+  # Key stays GOOGLE_CLOUD_PROJECT -- the var the agy subprocess reads.
+  GOOGLE_CLOUD_PROJECT: !ENV ${EVAL_GCP_PROJECT_ID}
   GOOGLE_CLOUD_LOCATION: "global"
   GOOGLE_GENAI_USE_VERTEXAI: "true"
 
@@ -33,4 +35,4 @@ setup:
         scopes:
         - https://www.googleapis.com/auth/cloud-platform
       headers:
-        X-Goog-User-Project: astana-evaluation
+        X-Goog-User-Project: !ENV ${EVAL_GCP_PROJECT_ID}

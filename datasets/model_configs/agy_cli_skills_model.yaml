@@ -8,12 +8,14 @@
 # inherits whatever the host's real settings.json last selected via `/model`.
 generator: agy_cli
 env:
-  GOOGLE_CLOUD_PROJECT: "astana-evaluation"
+  # Set to your project, or export EVAL_GCP_PROJECT_ID and keep the !ENV form.
+  # Key stays GOOGLE_CLOUD_PROJECT -- the var the agy subprocess reads.
+  GOOGLE_CLOUD_PROJECT: !ENV ${EVAL_GCP_PROJECT_ID}
   GOOGLE_CLOUD_LOCATION: "global"
   GOOGLE_GENAI_USE_VERTEXAI: "true"
 
   # Set the following environment variables for sql skills
-  CLOUD_SQL_POSTGRES_PROJECT: "astana-evaluation"
+  CLOUD_SQL_POSTGRES_PROJECT: !ENV ${EVAL_GCP_PROJECT_ID}
   CLOUD_SQL_POSTGRES_REGION: "us-central1"
   CLOUD_SQL_POSTGRES_INSTANCE: <instance>
   CLOUD_SQL_POSTGRES_DATABASE: <database>

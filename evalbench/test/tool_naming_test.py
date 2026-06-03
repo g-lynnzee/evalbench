@@ -133,7 +133,7 @@ class ParseAgyMcpToolCallTest(unittest.TestCase):
 
     # Exact shape captured from a real agy transcript tool_call.
     REAL_ARGS = {
-        "Arguments": '{"project":"astana-evaluation"}',
+        "Arguments": '{"project":"example-project"}',
         "ServerName": '"cloud-sql"',
         "ToolName": '"list_instances"',
         "toolAction": '"Listing Cloud SQL instances"',

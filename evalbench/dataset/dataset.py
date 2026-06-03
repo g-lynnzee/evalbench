@@ -10,6 +10,29 @@ from dataset.evalgeminicliinput import EvalGeminiCliRequest
 from dataset.cortadoinput import EvalCortadoRequest
 from itertools import chain
 import os
+import re
+
+
+_ENV_PLACEHOLDER_RE = re.compile(r"\$\{([^}]+)\}")
+
+
+def _expand_env_placeholders(text: str, source_path: str) -> str:
+    """Substitutes ``${VAR}`` placeholders in a raw dataset from the
+    environment, so values like a GCP project are supplied at runtime instead
+    of hard-coded. Fails fast on any unresolved placeholder rather than
+    passing a literal ``${VAR}`` to the agent.
+    """
+    expanded = os.path.expandvars(text)
+    unresolved = sorted(
+        {m.group(1) for m in _ENV_PLACEHOLDER_RE.finditer(expanded)}
+    )
+    if unresolved:
+        raise ValueError(
+            f"Unresolved ${{...}} placeholder(s) in dataset {source_path}: "
+            f"{unresolved}. Export the corresponding environment variable(s) "
+            f"before running (e.g. `export {unresolved[0]}=...`)."
+        )
+    return expanded
 
 
 def load_schema(dataset_dir: str, selected_database: str):
@@ -119,6 +142,7 @@ def load_gemini_cli_json(json_file_path):
     }
     with open(json_file_path, "r") as json_file:
         json_item = json_file.read()
+        json_item = _expand_env_placeholders(json_item, json_file_path)
         item = json.loads(json_item)
 
         # Resolve work_dir for scenarios
