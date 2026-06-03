@@ -131,7 +131,9 @@ class ParseAgyMcpToolCallTest(unittest.TestCase):
     carry the real server/tool identity. Values are stored JSON-encoded
     (with surrounding quotes), as observed in a real v1.0.3 transcript."""
 
-    # Exact shape captured from a real agy transcript tool_call.
+    # Exact shape captured from a real agy transcript tool_call. Mirrored by
+    # the ``args`` of ``_REAL_MCP_CALL`` in agy_cli_test.py -- keep the two in
+    # lockstep if the observed agy transcript shape changes.
     REAL_ARGS = {
         "Arguments": '{"project":"example-project"}',
         "ServerName": '"cloud-sql"',

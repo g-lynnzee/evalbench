@@ -327,6 +327,8 @@ def test_parse_transcript_no_conversation_returns_fallback(sandbox):
 
 
 # The exact JSON-quoted arg shape agy writes for a real MCP wrapper call.
+# The ``args`` payload mirrors ``REAL_ARGS`` in tool_naming_test.py -- keep the
+# two in lockstep if the observed agy transcript shape changes.
 _REAL_MCP_CALL = {
     "name": "call_mcp_tool",
     "args": {
