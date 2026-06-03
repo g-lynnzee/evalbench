@@ -13,6 +13,11 @@ simulated_user_model_config: datasets/model_configs/gemini_2.5_pro_model.yaml
 ### Scorer Related Configs
 ############################################################
 scorers:
+  # Note: trajectory_matcher and parameter_analysis are omitted here because
+  # skill-driven workflows use a different execution surface. The agent activates
+  # high-level skills rather than directly invoking granular tools.
+  # To evaluate skill execution paths, use the `skills_trajectory` scorer instead.
+
   goal_completion:
     model_config: datasets/model_configs/gemini_2.5_pro_model.yaml
   behavioral_metrics:
