@@ -51,7 +51,7 @@ def test_setup_single_skill_string_runs_plugin_install(mock_run, sandbox):
 
     calls = _install_calls(mock_run)
     assert len(calls) == 1
-    assert list(calls[0].args[0]) == ["agy", "plugin", "install", target]
+    assert list(calls[0].args[0]) == ["agy", "plugin", "install", "--", target]
 
 
 def test_setup_multiple_skills_string_each_installed(mock_run, sandbox):
@@ -78,7 +78,7 @@ def test_install_from_repo_local_path_installs_directly(
     assert git_calls == []
     calls = _install_calls(mock_run)
     assert len(calls) == 1
-    assert list(calls[0].args[0]) == ["agy", "plugin", "install", local_dir]
+    assert list(calls[0].args[0]) == ["agy", "plugin", "install", "--", local_dir]
 
 
 def test_install_from_repo_git_url_clones_then_installs(mock_run, sandbox):
@@ -103,7 +103,7 @@ def test_install_from_repo_git_url_clones_then_installs(mock_run, sandbox):
     calls = _install_calls(mock_run)
     assert len(calls) == 1
     assert list(calls[0].args[0]) == [
-        "agy", "plugin", "install", expected_clone,
+        "agy", "plugin", "install", "--", expected_clone,
     ]
 
 
