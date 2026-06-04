@@ -940,68 +940,24 @@ def test_models_bucket_falls_back_to_agy(sandbox):
     assert "agy" in _stats_models(generator, generator.fake_home)
 
 
-_SECRET = "projects/p/secrets/AGY_OAUTH_TOKEN/versions/latest"
-_ID_SECRET = "projects/p/secrets/AGY_INSTALLATION_ID/versions/latest"
-
-
-@patch('generators.models.agy_cli._fetch_agy_secret')
-def test_oauth_token_seeded_from_secret_manager(mock_fetch, sandbox):
-    """A configured token secret is fetched and written into the sandbox
-    appDataDir, without any token existing on the host's disk."""
-    mock_fetch.return_value = '{"auth_method":"x","token":{}}'
-
-    generator = AgyCliGenerator({"agy_oauth_token_secret": _SECRET})
-
-    mock_fetch.assert_called_once_with(_SECRET)
-    token_file = os.path.join(generator.app_data_dir, "antigravity-oauth-token")
-    with open(token_file) as f:
-        assert f.read() == '{"auth_method":"x","token":{}}'
-
-
-@patch('generators.models.agy_cli._fetch_agy_secret')
-def test_secret_takes_precedence_over_disk_mirror(mock_fetch, sandbox):
-    """When a token secret is configured, the host's on-disk token is not
-    used -- the Secret Manager payload wins."""
+def test_oauth_token_mirrored_from_host_disk(sandbox):
+    """The host's on-disk token is mirrored into the sandbox appDataDir."""
     real_app_data = sandbox / APP_DATA_SUBPATH
     real_app_data.mkdir(parents=True)
     with open(real_app_data / "antigravity-oauth-token", "w") as f:
-        f.write("STALE_DISK_TOKEN")
-    mock_fetch.return_value = "FRESH_SECRET_TOKEN"
+        f.write("DISK_TOKEN")
 
-    generator = AgyCliGenerator({"agy_oauth_token_secret": _SECRET})
-
-    token_file = os.path.join(generator.app_data_dir, "antigravity-oauth-token")
-    with open(token_file) as f:
-        assert f.read() == "FRESH_SECRET_TOKEN"
-
-
-@patch('generators.models.agy_cli._fetch_agy_secret')
-def test_required_token_secret_failure_raises(mock_fetch, sandbox):
-    """A failure fetching the (required) token secret is fatal."""
-    mock_fetch.side_effect = RuntimeError("boom")
-
-    with pytest.raises(RuntimeError):
-        AgyCliGenerator({"agy_oauth_token_secret": _SECRET})
-
-
-@patch('generators.models.agy_cli._fetch_agy_secret')
-def test_missing_installation_id_secret_is_non_fatal(mock_fetch, sandbox):
-    """A failure fetching the (optional) installation_id secret is logged,
-    not fatal, and does not block the token seed."""
-    def _fetch(path):
-        if path == _ID_SECRET:
-            raise RuntimeError("boom")
-        return "TOKEN"
-
-    mock_fetch.side_effect = _fetch
-
-    generator = AgyCliGenerator({
-        "agy_oauth_token_secret": _SECRET,
-        "agy_installation_id_secret": _ID_SECRET,
-    })
+    generator = AgyCliGenerator({})
 
     token_file = os.path.join(generator.app_data_dir, "antigravity-oauth-token")
     with open(token_file) as f:
-        assert f.read() == "TOKEN"
-    id_file = os.path.join(generator.app_data_dir, "installation_id")
-    assert not os.path.exists(id_file)
+        assert f.read() == "DISK_TOKEN"
+
+
+def test_missing_host_token_is_non_fatal(sandbox):
+    """A missing host token does not raise at init; the warning path is
+    exercised and no token file is written into the sandbox."""
+    generator = AgyCliGenerator({})
+
+    token_file = os.path.join(generator.app_data_dir, "antigravity-oauth-token")
+    assert not os.path.exists(token_file)
