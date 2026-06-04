@@ -11,9 +11,15 @@ import sys
 import dateutil.parser
 from util.context import rpc_id_var
 
-# Bare command name on PATH. agy's installer exposes no version pinning and the
-# binary self-updates in the background, so there is nothing to configure.
+# Bare command name. agy's installer exposes no version pinning and the binary
+# self-updates in the background, so there is nothing to configure. This is the
+# reported agent_version label only -- the binary actually launched is the
+# per-session install at self.agy_bin (see _ensure_agy_installed).
 AGY_CLI = "agy"
+
+# Upstream one-line installer. Honors --dir (and $HOME) for the install
+# location and skips the download when the binary already exists at the target.
+AGY_INSTALL_URL = "https://antigravity.google/cli/install.sh"
 
 # Accepts a Secret Manager resource path with a numeric version or ``latest``.
 # Unlike the shared ``get_db_secret`` helper (numeric only), agy OAuth tokens
@@ -72,21 +78,12 @@ class AgyCliGenerator(QueryGenerator):
         super().__init__(querygenerator_config)
         self.name = "agy_cli"
 
-        # Fail fast if the binary is missing. Docker images install it; local
-        # runs must have it on PATH. Without this the failure surfaces late and
-        # cryptically -- and only at all when MCP servers are configured (the
-        # probe is the sole other FileNotFoundError site).
-        if shutil.which(AGY_CLI) is None:
-            raise RuntimeError(
-                f"'{AGY_CLI}' CLI not found on PATH. Install it (macOS/Linux): "
-                "curl -fsSL https://antigravity.google/cli/install.sh | bash"
-            )
-
         # Parity with gemini_cli_version/codex_cli_version/claude_code_version:
-        # the evaluator reads this as agent_version. Unlike those (npm specs
-        # resolved via `npm exec`), agy has no version pinning and the value is
-        # also the binary executed directly, so it is fixed to the bare command
-        # name and is intentionally not config-overridable.
+        # the evaluator reads this as agent_version. agy has no version pinning
+        # (the binary self-updates), so this is fixed to the bare command name
+        # as a stable label and is intentionally not config-overridable. The
+        # executable actually launched is the per-session install at
+        # self.agy_bin (see _ensure_agy_installed), not this value.
         self.agy_cli_version = AGY_CLI
 
         self.env = querygenerator_config.get("env") or {}
@@ -112,11 +109,13 @@ class AgyCliGenerator(QueryGenerator):
             "agy_installation_id_secret"
         )
 
-        # Order is load-bearing: paths/dirs must exist before settings and
-        # auth write into them, and self.env must carry HOME before auth
-        # resolves ADC. Keep these calls in sequence.
+        # Order is load-bearing: paths/dirs must exist before the binary
+        # installs and settings/auth write into them, and self.env must carry
+        # HOME before the installer stages files (and auth resolves ADC) into
+        # the sandbox. Keep these calls in sequence.
         self._init_paths(querygenerator_config)
         self.env["HOME"] = self.fake_home
+        self._ensure_agy_installed()
         self._initialize_settings_file()
         self._setup_auth()
 
@@ -142,6 +141,13 @@ class AgyCliGenerator(QueryGenerator):
                 os.path.join(".venv", "fake_home_agy")
             )
 
+        # The agy binary is installed per-session under fake_home (not on the
+        # host PATH or in the Docker image) -- see _ensure_agy_installed. The
+        # installer's default target is $HOME/.local/bin, which we pin
+        # explicitly via --dir so it does not depend on HOME resolution.
+        self.bin_dir = os.path.join(self.fake_home, ".local", "bin")
+        self.agy_bin = os.path.join(self.bin_dir, "agy")
+
         self.app_data_dir = os.path.join(self.fake_home, self.APP_DATA_SUBPATH)
         self.settings_path = os.path.join(self.app_data_dir, "settings.json")
         self.config_dir = os.path.join(self.fake_home, ".gemini", "config")
@@ -152,9 +158,68 @@ class AgyCliGenerator(QueryGenerator):
         )
 
         os.makedirs(self.fake_home, exist_ok=True)
+        os.makedirs(self.bin_dir, exist_ok=True)
         os.makedirs(self.app_data_dir, exist_ok=True)
         os.makedirs(os.path.dirname(self.settings_path), exist_ok=True)
         os.makedirs(self.config_dir, exist_ok=True)
+
+    def _ensure_agy_installed(self):
+        """Installs the ``agy`` binary into this session's sandbox if absent.
+
+        The binary lives under the per-session ``fake_home``
+        (``self.agy_bin``) rather than on the host PATH or baked into the
+        Docker image. Per-session keeps concurrent evals isolated: no install
+        race between sessions, and no shared binary that agy's background
+        self-update could swap mid-run -- which would otherwise skew the agent
+        version across a single batch.
+
+        The upstream installer skips the download when the binary already
+        exists, and we short-circuit on the same check, so a generator
+        re-constructed within a live session is a cheap stat.
+        """
+        if os.path.exists(self.agy_bin) and os.access(self.agy_bin, os.X_OK):
+            logging.info(
+                "agy binary already present at %s; skipping install.",
+                self.agy_bin,
+            )
+            return
+
+        env = self._merged_env()
+        staging_dir = os.path.join(self.fake_home, ".cache", "agy_install")
+        os.makedirs(staging_dir, exist_ok=True)
+        script_path = os.path.join(staging_dir, "install.sh")
+
+        # Two argv-list steps (no shell): fetch the installer to a file, then
+        # run it with an explicit --dir. The canonical ``curl | bash`` pipe
+        # would need a shell, which would interpolate the session-derived
+        # install dir into a command string; argv lists avoid that entirely.
+        steps = (
+            (["curl", "-fsSL", "-o", script_path, AGY_INSTALL_URL],
+             "download agy installer"),
+            (["bash", script_path, "--dir", self.bin_dir],
+             "install agy binary"),
+        )
+        for cmd, what in steps:
+            try:
+                result = subprocess.run(
+                    cmd, env=env, capture_output=True, text=True,
+                    timeout=300, check=False,
+                )
+            except (FileNotFoundError, subprocess.TimeoutExpired) as e:
+                raise RuntimeError(f"Failed to {what}: {e}") from e
+            if result.returncode != 0:
+                raise RuntimeError(
+                    f"Failed to {what} (rc={result.returncode}): "
+                    f"{(result.stderr or result.stdout or '').strip()}"
+                )
+
+        if not (os.path.exists(self.agy_bin)
+                and os.access(self.agy_bin, os.X_OK)):
+            raise RuntimeError(
+                f"agy installer ran but produced no executable at "
+                f"{self.agy_bin}."
+            )
+        logging.info("Installed agy into session sandbox at %s.", self.agy_bin)
 
     def _setup_auth(self):
         """Seeds agy's OAuth state into the sandbox and wires up gcloud ADC
@@ -450,7 +515,7 @@ class AgyCliGenerator(QueryGenerator):
         before = set(os.listdir(log_dir)) if os.path.isdir(log_dir) else set()
 
         env = self._merged_env()
-        cmd = self._base_agy_command(AGY_CLI, "ping")
+        cmd = self._base_agy_command(self.agy_bin, "ping")
         try:
             subprocess.run(
                 cmd, env=env, cwd=self.fake_home,
@@ -602,7 +667,7 @@ class AgyCliGenerator(QueryGenerator):
         but the delimiter keeps a stray ``--`` value from changing the
         command's meaning.)
         """
-        cmd = [AGY_CLI, "plugin", "install", "--", target]
+        cmd = [self.agy_bin, "plugin", "install", "--", target]
         result = self._execute_cli_command(cmd, env=env, cwd=self.fake_home)
         if result.returncode != 0:
             logging.error(
@@ -761,7 +826,7 @@ class AgyCliGenerator(QueryGenerator):
 
     def generate_internal(self, cli_cmd):
         if not isinstance(cli_cmd, CLICommand):
-            cli_cmd = CLICommand(AGY_CLI, str(cli_cmd))
+            cli_cmd = CLICommand(self.agy_bin, str(cli_cmd))
         return self._run_agy_cli(cli_cmd)
 
     def _execute_cli_command(
@@ -788,8 +853,11 @@ class AgyCliGenerator(QueryGenerator):
 
     def _run_agy_cli(self, cli_cmd: CLICommand):
         env = self._merged_env(cli_cmd.env)
+        # The executable is always this session's sandbox binary, regardless of
+        # the label carried on cli_cmd.cli (the evaluator passes agent_version,
+        # "agy", which is not a path).
         command = self._base_agy_command(
-            cli_cmd.cli, cli_cmd.prompt, cli_cmd.resume
+            self.agy_bin, cli_cmd.prompt, cli_cmd.resume
         )
         cwd = cli_cmd.cwd if cli_cmd.cwd else self.fake_home
         result = self._execute_cli_command(command, env=env, cwd=cwd)
@@ -1117,8 +1185,12 @@ class AgyCliGenerator(QueryGenerator):
         self, cli: str, prompt: str, env: dict = None, resume: bool = False,
         cwd: str = None,
     ) -> CLICommand:
-        # Only the per-call overrides are stored here; the generator's
-        # configured ``self.env`` and the process environment are layered in
-        # once at invocation time by ``_run_agy_cli`` via ``_merged_env``.
-        return CLICommand(cli=cli, prompt=prompt, env=env or {},
+        # The executable is always this session's sandbox binary
+        # (self.agy_bin); the ``cli`` argument -- the agent_version label "agy"
+        # the evaluator passes -- is a display label, not a path, so it is not
+        # used to launch the process. Only the per-call overrides are stored
+        # here; the generator's configured ``self.env`` and the process
+        # environment are layered in once at invocation time by
+        # ``_run_agy_cli`` via ``_merged_env``.
+        return CLICommand(cli=self.agy_bin, prompt=prompt, env=env or {},
                           resume=resume, cwd=cwd)

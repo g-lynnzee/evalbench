@@ -21,18 +21,12 @@ RUN curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --dearmor -
   apt-get update -y && \
   apt-get install -y google-cloud-cli
 
-# Antigravity CLI (agy) -- installer writes a SHA-512-verified binary to the
-# directory passed via --dir. The installer exposes no version pinning, but the
-# binary self-updates in the background; AGY_CLI_DISABLE_AUTO_UPDATE freezes it
-# to the build installed here so a run's agy version stays fixed for the image.
-#
-# Trust model: unlike the GPG-keyed apt repos above, this is `curl | sh` with
-# no SHA pin of the install script itself (trust-on-first-use). The script body
-# is mutable upstream so pinning its hash would break builds on every change;
-# trust rests on HTTPS to the Google-owned domain, and the installer in turn
-# SHA-512-verifies the binary it fetches. Accepted for this internal tool.
+# agy is not installed at build time; the harness installs it per session at
+# runtime (AgyCliGenerator._ensure_agy_installed). This env var has no install
+# to pair with here on purpose: it propagates into the runtime agy subprocess
+# and disables its background self-update so a binary can't swap versions
+# mid-eval.
 ENV AGY_CLI_DISABLE_AUTO_UPDATE=true
-RUN curl -fsSL https://antigravity.google/cli/install.sh | sh -s -- --dir /usr/local/bin
 
 WORKDIR /evalbench
 COPY pyproject.toml uv.lock ./

@@ -28,6 +28,21 @@ def sandbox(tmp_path, monkeypatch):
     return real_home
 
 
+@pytest.fixture(autouse=True)
+def skip_agy_install(request):
+    """The generator installs the agy binary into the session sandbox during
+    __init__. That hits the network, so stub it to a no-op for every test --
+    the binary path (self.agy_bin) is still set by _init_paths. Tests that
+    exercise the real installer opt out with @pytest.mark.real_agy_install."""
+    if request.node.get_closest_marker("real_agy_install"):
+        yield
+        return
+    with patch.object(
+        AgyCliGenerator, "_ensure_agy_installed", lambda self: None
+    ):
+        yield
+
+
 @pytest.fixture
 def mock_run():
     """Patches the generator's ``subprocess.run`` with a success-by-default
@@ -38,21 +53,25 @@ def mock_run():
 
 
 def _install_calls(mock_run):
-    """Returns the ``agy plugin install`` subprocess calls captured."""
+    """Returns the ``agy plugin install`` subprocess calls captured. The
+    executable (argv[0]) is the per-session sandbox binary path, so match on
+    the ``plugin install`` subcommand rather than a fixed command name."""
     return [
         c for c in mock_run.call_args_list
-        if c.args and list(c.args[0][:3]) == ["agy", "plugin", "install"]
+        if c.args and list(c.args[0][1:3]) == ["plugin", "install"]
     ]
 
 
 def test_setup_single_skill_string_runs_plugin_install(mock_run, sandbox):
     """A string entry is passed straight to ``agy plugin install``."""
     target = "cloud-sql-postgresql@gemini-cli-extensions"
-    AgyCliGenerator({"setup": {"skills": [target]}})
+    generator = AgyCliGenerator({"setup": {"skills": [target]}})
 
     calls = _install_calls(mock_run)
     assert len(calls) == 1
-    assert list(calls[0].args[0]) == ["agy", "plugin", "install", "--", target]
+    assert list(calls[0].args[0]) == [
+        generator.agy_bin, "plugin", "install", "--", target,
+    ]
 
 
 def test_setup_multiple_skills_string_each_installed(mock_run, sandbox):
@@ -79,7 +98,9 @@ def test_install_from_repo_local_path_installs_directly(
     assert git_calls == []
     calls = _install_calls(mock_run)
     assert len(calls) == 1
-    assert list(calls[0].args[0]) == ["agy", "plugin", "install", "--", local_dir]
+    assert list(calls[0].args[0]) == [
+        generator.agy_bin, "plugin", "install", "--", local_dir,
+    ]
 
 
 def test_install_from_repo_git_url_clones_then_installs(mock_run, sandbox):
@@ -104,7 +125,7 @@ def test_install_from_repo_git_url_clones_then_installs(mock_run, sandbox):
     calls = _install_calls(mock_run)
     assert len(calls) == 1
     assert list(calls[0].args[0]) == [
-        "agy", "plugin", "install", "--", expected_clone,
+        generator.agy_bin, "plugin", "install", "--", expected_clone,
     ]
 
 
@@ -158,6 +179,78 @@ def test_unsupported_skill_action_is_logged_not_executed(
     assert any("Unsupported skill action" in r.message for r in caplog.records)
 
 
+def _local_agy_bin():
+    """The per-session agy binary path for a local (non-eval_server) run,
+    resolved against cwd. The `sandbox` fixture chdirs into the per-test tmp
+    dir; keep in sync with AgyCliGenerator._init_paths."""
+    return os.path.join(
+        os.path.abspath(os.path.join(".venv", "fake_home_agy")),
+        ".local", "bin", "agy",
+    )
+
+
+@pytest.mark.real_agy_install
+def test_ensure_agy_installed_skips_when_binary_present(mock_run, sandbox):
+    """An existing executable at the sandbox path short-circuits the install --
+    no download happens."""
+    agy_bin = _local_agy_bin()
+    os.makedirs(os.path.dirname(agy_bin), exist_ok=True)
+    with open(agy_bin, "w") as f:
+        f.write("#!/bin/sh\n")
+    os.chmod(agy_bin, 0o755)
+
+    AgyCliGenerator({})
+
+    assert mock_run.call_count == 0
+
+
+@pytest.mark.real_agy_install
+def test_ensure_agy_installed_downloads_then_runs_installer(mock_run, sandbox):
+    """Cold sandbox: fetch the installer with curl, then run it with bash and
+    an explicit --dir pointing at the session bin dir."""
+    agy_bin = _local_agy_bin()
+
+    def fake_run(cmd, *args, **kwargs):
+        # The installer materializes the binary; simulate on the bash step.
+        if cmd and cmd[0] == "bash":
+            os.makedirs(os.path.dirname(agy_bin), exist_ok=True)
+            with open(agy_bin, "w") as f:
+                f.write("#!/bin/sh\n")
+            os.chmod(agy_bin, 0o755)
+        return MagicMock(returncode=0, stdout="", stderr="")
+
+    mock_run.side_effect = fake_run
+    gen = AgyCliGenerator({})
+
+    cmds = [list(c.args[0]) for c in mock_run.call_args_list]
+    assert cmds[0][0] == "curl"
+    assert cmds[0][-1] == "https://antigravity.google/cli/install.sh"
+    assert cmds[1][0] == "bash"
+    assert cmds[1][cmds[1].index("--dir") + 1] == gen.bin_dir
+    assert gen.agy_bin == agy_bin
+
+
+@pytest.mark.real_agy_install
+def test_ensure_agy_installed_raises_on_installer_failure(mock_run, sandbox):
+    """A non-zero installer exit is fatal and surfaces the step + stderr."""
+    mock_run.return_value = MagicMock(
+        returncode=1, stdout="", stderr="network down"
+    )
+    with pytest.raises(RuntimeError, match="download agy installer"):
+        AgyCliGenerator({})
+
+
+@pytest.mark.real_agy_install
+def test_ensure_agy_installed_raises_when_binary_absent_after_install(
+    mock_run, sandbox,
+):
+    """The installer reporting success but leaving no executable is fatal --
+    otherwise the failure would surface cryptically at first invocation."""
+    mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+    with pytest.raises(RuntimeError, match="no executable"):
+        AgyCliGenerator({})
+
+
 def test_run_command_argv_shape(mock_run, sandbox):
     """``_run_agy_cli`` must build ``agy -p <prompt>
     --dangerously-skip-permissions`` -- no legacy flags."""
@@ -167,7 +260,8 @@ def test_run_command_argv_shape(mock_run, sandbox):
 
     sent_argv = mock_run.call_args[0][0]
     assert sent_argv == [
-        "agy", "-p", "hello world", "--dangerously-skip-permissions",
+        generator.agy_bin, "-p", "hello world",
+        "--dangerously-skip-permissions",
     ]
 
 
@@ -178,8 +272,8 @@ def test_run_command_argv_shape_with_continue(mock_run, sandbox):
 
     sent_argv = mock_run.call_args[0][0]
     assert sent_argv == [
-        "agy", "-p", "next turn", "--dangerously-skip-permissions",
-        "--continue",
+        generator.agy_bin, "-p", "next turn",
+        "--dangerously-skip-permissions", "--continue",
     ]
 
 
