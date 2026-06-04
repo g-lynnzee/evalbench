@@ -45,11 +45,6 @@ class AgyCliGenerator(QueryGenerator):
     ``--output-format`` flag and no stdout stream protocol; structured
     tool-call data is read out of the per-conversation JSONL transcript at
     ``<appDataDir>/brain/<uuid>/.system_generated/logs/transcript.jsonl``.
-    (v1.0.5 also persists each conversation to a SQLite db under
-    ``<appDataDir>/conversations/<uuid>.db`` and calls SQLite "the CLI's
-    conversation format"; the JSONL transcript is still written alongside it,
-    but if a future release drops the JSONL the transcript parser here would
-    need to read the db instead.)
     """
 
     APP_DATA_SUBPATH = os.path.join(".gemini", "antigravity-cli")
@@ -439,22 +434,15 @@ class AgyCliGenerator(QueryGenerator):
         """Spawns a short-lived ``agy -p`` probe and confirms each
         configured MCP server actually attached and discovered tools.
 
-        The authoritative signal is on disk: when agy attaches an MCP
-        server it discovers the server's tools and writes one JSON schema
-        file per tool to ``<appDataDir>/mcp/<server>/<tool>.json`` (the
-        lazy-load schema cache that ``call_mcp_tool`` later reads). This
-        happens at attach time, independent of what the model does -- a
-        noop probe prompt still populates it -- so a server that fails to
-        attach (e.g. a config with the wrong URL field, which agy accepts
-        silently and exposes zero tools) leaves its directory empty. The
-        old approach of only grepping ``cli.log`` for fatal markers could
-        not catch that silent failure, which is exactly what made the
-        agent fall back to ``gcloud`` shell-outs.
+        Validates attachment by checking the disk cache
+        (``<appDataDir>/mcp/<server>/<tool>.json``), which agy populates
+        during initialization. This prevents silent failures where agy
+        accepts an invalid config but exposes zero tools without logging a
+        fatal error.
 
-        We clear each server's schema dir first so the check reflects this
-        run's config and never passes on a stale cache. Fatal log markers
-        are still scanned to enrich the error message. Timeout is bounded
-        so a backend hang doesn't stall the whole eval.
+        Prior to the probe, we clear the schema directory to ensure we don't
+        read a stale cache. Fatal logs are still scanned to enrich error
+        messages, and the probe is bounded by a timeout.
         """
         mcp_schema_root = os.path.join(self.app_data_dir, "mcp")
         for server in configured_servers:
@@ -766,23 +754,9 @@ class AgyCliGenerator(QueryGenerator):
     def _translate_mcp_config(config: dict) -> dict:
         """Normalizes a cross-harness MCP server config into agy's schema.
 
-        agy's HTTP transport field is ``serverUrl`` (Windsurf/cortex
-        lineage), confirmed from the binary's config struct
-        (``ServerUrl *string json:"serverUrl"``; present through v1.0.5). A
-        gemini-style ``httpUrl`` value historically parsed to a nil URL --
-        the server attaches with no transport and exposes no tools, the
-        silent failure that made the agent fall back to ``gcloud``
-        shell-outs -- so we normalize the common gemini alias ``httpUrl``
-        onto ``serverUrl``, which agy reliably accepts. (v1.0.5 also added a
-        plain ``url`` field per the changelog, and the binary now carries an
-        ``httpUrl`` json tag too, but normalizing to ``serverUrl`` remains
-        the safe, verified path.)
-
-        Everything else passes through untouched: ``authProviderType``
-        (``google_credentials`` is a valid enum), ``oauth.scopes``,
-        ``headers``, and the stdio fields (``command``/``args``/``env``)
-        are all native agy schema fields, so no Bearer-token injection is
-        needed (unlike claude_code).
+        Maps the common gemini-style ``httpUrl`` alias to ``serverUrl``, which
+        agy reliably accepts. Other fields like ``authProviderType``,
+        ``oauth.scopes``, and stdio fields pass through natively.
         """
         if "httpUrl" in config and "serverUrl" not in config:
             config["serverUrl"] = config.pop("httpUrl")
@@ -995,14 +969,58 @@ class AgyCliGenerator(QueryGenerator):
             final_obj["response"] = fallback_response
             return json.dumps(final_obj, indent=2)
 
-        # Take only the steps from the last USER_INPUT onward (this turn).
+        turn_steps = self._slice_current_turn(steps)
+        (calls, result_for, response_text_parts,
+         turn_start_ts, turn_end_ts) = self._pair_calls_and_results(turn_steps)
+
+        final_obj["response"] = "\n".join(response_text_parts).strip() \
+            or fallback_response
+
+        # Approximate end-to-end latency from transcript timestamps.
+        total_duration_ms = self._ms_between(turn_start_ts, turn_end_ts)
+
+        final_obj["stats"]["models"] = self._build_models_stats(
+            total_duration_ms
+        )
+        final_obj["stats"]["tools"] = self._build_tools_stats(
+            calls, result_for
+        )
+        return json.dumps(final_obj, indent=2)
+
+    def _slice_current_turn(self, steps: list) -> list:
+        """Returns the steps from the last ``USER_INPUT`` onward (this turn).
+
+        The transcript accumulates across turns when ``--continue`` is used,
+        so the slice from the last ``USER_INPUT`` step is the new material
+        from this invocation.
+        """
         last_user_idx = max(
             (i for i, s in enumerate(steps)
              if s.get("type") == self._STEP_USER_INPUT),
             default=-1,
         )
-        turn_steps = steps[last_user_idx:] if last_user_idx >= 0 else steps
+        return steps[last_user_idx:] if last_user_idx >= 0 else steps
 
+    def _pair_calls_and_results(self, turn_steps: list):
+        """Pairs each tool call in one turn with the result step that
+        immediately follows it.
+
+        Returns ``(calls, result_for, response_text_parts, turn_start_ts,
+        turn_end_ts)`` where ``calls`` is an ordered list of ``(call, ts)``
+        and ``result_for`` maps a call's index to its ``(result_step, ts)``.
+
+        agy records a tool call on a ``PLANNER_RESPONSE`` step and the
+        tool's result on the *immediately following* MODEL step (MCP_TOOL
+        for genuine MCP calls; VIEW_FILE / RUN_COMMAND / ... for native
+        tools). We pair by strict adjacency: a call is bound only to the
+        result step that directly follows the planner step that emitted it.
+        The pending window is reset at every new planner step and at any
+        other intervening step, so a call that never produced a runtime
+        result -- e.g. a ``call_mcp_tool`` line the agent forged via
+        ``run_command`` -- stays unpaired instead of stealing a later
+        call's result. (An earlier FIFO scheme paired across steps and
+        mis-attributed a forged MCP call to a subsequent shell-out's result.)
+        """
         calls = []          # ordered (call_dict, ts)
         result_for = {}     # call index -> (result_step, ts)
         # call indices awaiting an adjacent result
@@ -1011,17 +1029,6 @@ class AgyCliGenerator(QueryGenerator):
         turn_start_ts = None
         turn_end_ts = None
 
-        # agy records a tool call on a ``PLANNER_RESPONSE`` step and the
-        # tool's result on the *immediately following* MODEL step (MCP_TOOL
-        # for genuine MCP calls; VIEW_FILE / RUN_COMMAND / ... for native
-        # tools). We pair by strict adjacency: a call is bound only to the
-        # result step that directly follows the planner step that emitted it.
-        # The pending window is reset at every new planner step and at any
-        # other intervening step, so a call that never produced a runtime
-        # result -- e.g. a ``call_mcp_tool`` line the agent forged via
-        # ``run_command`` -- stays unpaired instead of stealing a later
-        # call's result. (An earlier FIFO scheme paired across steps and
-        # mis-attributed a forged MCP call to a subsequent shell-out's result.)
         for step in turn_steps:
             ts = step.get("created_at")
             if ts and turn_start_ts is None:
@@ -1053,19 +1060,12 @@ class AgyCliGenerator(QueryGenerator):
                 # Any other intervening step breaks adjacency.
                 pending.clear()
 
-        final_obj["response"] = "\n".join(response_text_parts).strip() \
-            or fallback_response
+        return (calls, result_for, response_text_parts,
+                turn_start_ts, turn_end_ts)
 
-        # Approximate end-to-end latency from transcript timestamps.
-        total_duration_ms = 0
-        if turn_start_ts and turn_end_ts:
-            try:
-                t0 = dateutil.parser.isoparse(turn_start_ts)
-                t1 = dateutil.parser.isoparse(turn_end_ts)
-                total_duration_ms = int((t1 - t0).total_seconds() * 1000)
-            except (ValueError, TypeError):
-                total_duration_ms = 0
-
+    def _build_tools_stats(self, calls: list, result_for: dict) -> dict:
+        """Aggregates per-tool call/success/fail/duration counts from the
+        paired calls into the ``tools`` stats envelope."""
         tools_by_name = {}
         for idx, (call, call_ts) in enumerate(calls):
             raw_name = call.get("name", "unknown")
@@ -1110,13 +1110,7 @@ class AgyCliGenerator(QueryGenerator):
                     slot["success"] += 1
                 else:
                     slot["fail"] += 1
-                if call_ts and result_ts:
-                    try:
-                        t1 = dateutil.parser.isoparse(call_ts)
-                        t2 = dateutil.parser.isoparse(result_ts)
-                        duration = int((t2 - t1).total_seconds() * 1000)
-                    except (ValueError, TypeError):
-                        duration = 0
+                duration = self._ms_between(call_ts, result_ts)
             elif is_mcp:
                 # An MCP wrapper call with no runtime result step never
                 # executed -- count it as a failure rather than silently
@@ -1124,7 +1118,7 @@ class AgyCliGenerator(QueryGenerator):
                 slot["fail"] += 1
             slot["durationMs"] += duration
 
-        tools_stats = {
+        return {
             "totalCalls": len(calls),
             "totalSuccess": sum(s["success"] for s in tools_by_name.values()),
             "totalFail": sum(s["fail"] for s in tools_by_name.values()),
@@ -1140,17 +1134,22 @@ class AgyCliGenerator(QueryGenerator):
             "byName": tools_by_name,
         }
 
-        # The transcript does not echo the model name, so key the bucket under
-        # the configured model label (matching claude_code/codex_cli). When no
-        # model is configured, recover the model agy actually resolved (its
-        # default) from the cli log; fall back to a generic label only if even
-        # that is unavailable.
+    def _build_models_stats(self, total_duration_ms: int) -> dict:
+        """Builds the ``models`` stats bucket for the turn.
+
+        The transcript echoes neither a model name nor token counts, so the
+        bucket is keyed by the configured model label (matching
+        claude_code/codex_cli). When no model is configured, recover the
+        model agy actually resolved (its default) from the cli log; fall back
+        to a generic label only if even that is unavailable. Token counts are
+        always zero.
+        """
         model_name = (
             self.model
             or self._detect_model_from_log()
             or self._DEFAULT_MODEL_LABEL
         )
-        models = {
+        return {
             model_name: {
                 "api": {
                     "totalRequests": 1,
@@ -1169,9 +1168,18 @@ class AgyCliGenerator(QueryGenerator):
             }
         }
 
-        final_obj["stats"]["models"] = models
-        final_obj["stats"]["tools"] = tools_stats
-        return json.dumps(final_obj, indent=2)
+    @staticmethod
+    def _ms_between(ts0: str, ts1: str) -> int:
+        """Millisecond delta between two ISO-8601 timestamps, or 0 when
+        either is missing or unparseable."""
+        if not (ts0 and ts1):
+            return 0
+        try:
+            t0 = dateutil.parser.isoparse(ts0)
+            t1 = dateutil.parser.isoparse(ts1)
+        except (ValueError, TypeError):
+            return 0
+        return int((t1 - t0).total_seconds() * 1000)
 
     def parse_response(self, stdout: str) -> dict:
         if not stdout:
