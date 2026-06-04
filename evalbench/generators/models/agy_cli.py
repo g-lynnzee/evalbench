@@ -405,6 +405,21 @@ class AgyCliGenerator(QueryGenerator):
         None, "PLANNER_RESPONSE", "CONVERSATION_HISTORY", "GENERIC",
     )
 
+    # cli.log line agy emits once it has resolved the model for a run, e.g.
+    #   model_config_manager.go:157] Propagating selected model override to
+    #   backend: label="Gemini 3.5 Flash (High)"
+    # This is the only on-disk record of the *resolved* model: it appears
+    # whether the model came from --model, settings.json, or agy's own default
+    # (the transcript only records a model when the user explicitly changes it).
+    # Used to label the stats bucket when no model is configured -- see
+    # _detect_model_from_log.
+    _MODEL_LABEL_RE = re.compile(
+        r'Propagating selected model override to backend: label="([^"]+)"'
+    )
+
+    # Bucket label when the resolved model can't be determined from any source.
+    _DEFAULT_MODEL_LABEL = "agy"
+
     # Transcripts carry no token counts, so every token bucket is zero.
     _ZERO_TOKENS = {
         "input": 0, "prompt": 0, "candidates": 0,
@@ -888,6 +903,50 @@ class AgyCliGenerator(QueryGenerator):
             return None
         return cache.get(os.path.abspath(cwd))
 
+    def _latest_log_path(self):
+        """Return the path of the most recent agy cli log, or None.
+
+        agy writes a fresh ``log/cli-<timestamp>.log`` per process and points
+        the ``cli.log`` symlink at it. Since each query runs as its own agy
+        subprocess, the newest log reflects the run we just made.
+        """
+        cli_log = os.path.join(self.app_data_dir, "cli.log")
+        if os.path.exists(cli_log):
+            return cli_log
+        log_dir = os.path.join(self.app_data_dir, "log")
+        try:
+            logs = [
+                os.path.join(log_dir, f) for f in os.listdir(log_dir)
+                if f.endswith(".log")
+            ]
+        except OSError:
+            return None
+        if not logs:
+            return None
+        return max(logs, key=os.path.getmtime)
+
+    def _detect_model_from_log(self):
+        """Best-effort: read the resolved model label from the cli log.
+
+        Returns the last ``label="..."`` agy logged for this run (see
+        ``_MODEL_LABEL_RE``), or None if the log is missing/unreadable or
+        carries no such line. Used only as a fallback when no model is
+        configured, so any failure degrades gracefully to the default label.
+        """
+        log_path = self._latest_log_path()
+        if not log_path:
+            return None
+        label = None
+        try:
+            with open(log_path, "r") as f:
+                for line in f:
+                    match = self._MODEL_LABEL_RE.search(line)
+                    if match:
+                        label = match.group(1)
+        except OSError:
+            return None
+        return label
+
     def _read_transcript(self, conversation_id: str):
         transcript_path = os.path.join(
             self.app_data_dir, "brain", conversation_id,
@@ -1081,10 +1140,16 @@ class AgyCliGenerator(QueryGenerator):
             "byName": tools_by_name,
         }
 
-        # The transcript does not echo the model name, so key the bucket
-        # under the configured model label (matching claude_code/codex_cli),
-        # falling back to "agy" when no model is configured.
-        model_name = self.model or "agy"
+        # The transcript does not echo the model name, so key the bucket under
+        # the configured model label (matching claude_code/codex_cli). When no
+        # model is configured, recover the model agy actually resolved (its
+        # default) from the cli log; fall back to a generic label only if even
+        # that is unavailable.
+        model_name = (
+            self.model
+            or self._detect_model_from_log()
+            or self._DEFAULT_MODEL_LABEL
+        )
         models = {
             model_name: {
                 "api": {

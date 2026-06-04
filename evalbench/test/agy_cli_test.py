@@ -992,9 +992,76 @@ def test_models_bucket_keyed_by_configured_model(sandbox):
 
 
 def test_models_bucket_falls_back_to_agy(sandbox):
-    """Without a configured model, the bucket falls back to 'agy'."""
+    """Without a configured model and no cli log, the bucket falls back to
+    the generic 'agy' label."""
     generator = AgyCliGenerator({})
     assert "agy" in _stats_models(generator, generator.fake_home)
+
+
+_MODEL_LOG_LINE = (
+    'I0604 09:27:32.670492 1261111 model_config_manager.go:157] '
+    'Propagating selected model override to backend: '
+    'label="Gemini 3.5 Flash (Medium)"\n'
+)
+
+
+def _write_cli_log(generator, *lines):
+    log_dir = os.path.join(generator.app_data_dir, "log")
+    os.makedirs(log_dir, exist_ok=True)
+    log_file = os.path.join(log_dir, "cli-20260604_092731.log")
+    with open(log_file, "w") as f:
+        f.writelines(lines)
+    cli_log = os.path.join(generator.app_data_dir, "cli.log")
+    if os.path.lexists(cli_log):
+        os.remove(cli_log)
+    os.symlink(log_file, cli_log)
+
+
+def test_detect_model_from_log(sandbox):
+    """The resolved model label is recovered from the cli log."""
+    generator = AgyCliGenerator({})
+    _write_cli_log(generator, "noise\n", _MODEL_LOG_LINE)
+
+    assert generator._detect_model_from_log() == "Gemini 3.5 Flash (Medium)"
+
+
+def test_detect_model_from_log_takes_last_match(sandbox):
+    """When the log resolves the model more than once, the last wins."""
+    generator = AgyCliGenerator({})
+    _write_cli_log(
+        generator,
+        _MODEL_LOG_LINE,
+        _MODEL_LOG_LINE.replace("Gemini 3.5 Flash (Medium)", "Gemini 3.1 Pro (High)"),
+    )
+
+    assert generator._detect_model_from_log() == "Gemini 3.1 Pro (High)"
+
+
+def test_detect_model_from_log_returns_none_without_log(sandbox):
+    """No cli log -> no detected model."""
+    generator = AgyCliGenerator({})
+    assert generator._detect_model_from_log() is None
+
+
+def test_models_bucket_uses_detected_default_model(sandbox):
+    """Without a configured model, the bucket is keyed by the model agy
+    actually resolved (read from the cli log), not the generic 'agy'."""
+    generator = AgyCliGenerator({})
+    _write_cli_log(generator, _MODEL_LOG_LINE)
+
+    models = _stats_models(generator, generator.fake_home)
+    assert "Gemini 3.5 Flash (Medium)" in models
+    assert "agy" not in models
+
+
+def test_configured_model_overrides_detected_log_model(sandbox):
+    """A configured model takes precedence over whatever the log resolved."""
+    generator = AgyCliGenerator({"model": "Gemini 3.1 Pro (High)"})
+    _write_cli_log(generator, _MODEL_LOG_LINE)
+
+    assert "Gemini 3.1 Pro (High)" in _stats_models(
+        generator, generator.fake_home
+    )
 
 
 def test_oauth_token_mirrored_from_host_disk(sandbox):
