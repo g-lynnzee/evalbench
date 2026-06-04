@@ -129,7 +129,7 @@ class CanonicalizeAdapterFormsTest(unittest.TestCase):
 class ParseAgyMcpToolCallTest(unittest.TestCase):
     """agy wraps MCP calls in a native ``call_mcp_tool`` tool whose args
     carry the real server/tool identity. Values are stored JSON-encoded
-    (with surrounding quotes), as observed in a real v1.0.3 transcript."""
+    (with surrounding quotes), as observed in a real v1.0.5 transcript."""
 
     # Exact shape captured from a real agy transcript tool_call. Mirrored by
     # the ``args`` of ``_REAL_MCP_CALL`` in agy_cli_test.py -- keep the two in
@@ -164,7 +164,7 @@ class ParseAgyMcpToolCallTest(unittest.TestCase):
         )
 
     def test_only_canonical_keys_are_accepted(self):
-        # The agy v1.0.3 schema uses exactly ``ServerName``/``ToolName`` (no
+        # The agy v1.0.5 schema uses exactly ``ServerName``/``ToolName`` (no
         # ``json:`` tags, so the Go field names are the property names). Any
         # other casing is not a real agy key and must not be accepted.
         self.assertIsNone(

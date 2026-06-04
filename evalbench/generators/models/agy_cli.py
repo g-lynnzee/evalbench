@@ -34,17 +34,22 @@ class CLICommand:
 class AgyCliGenerator(QueryGenerator):
     """Generator that queries via the Antigravity CLI (``agy``).
 
-    Surface targeted here is what the v1.0.3 binary actually exposes:
-    ``agy -p <prompt> --dangerously-skip-permissions [--continue]``. The
-    on-disk layout lives under ``~/.gemini/antigravity-cli/`` (the binary
-    calls this ``appDataDir``). Skills are delivered via plugins: ``agy
-    plugin install <target>`` reads a plugin manifest (Claude/Gemini/Codex
-    formats), materializes any bundled skills under
-    ``<HOME>/.gemini/config/plugins/<name>/`` and records the install in
-    ``<HOME>/.gemini/config/import_manifest.json``. There is no
+    Surface targeted here is what the v1.0.5 binary actually exposes:
+    ``agy -p <prompt> --dangerously-skip-permissions [--model <label>]
+    [--continue]``. The on-disk layout lives under
+    ``~/.gemini/antigravity-cli/`` (the binary calls this ``appDataDir``).
+    Skills are delivered via plugins: ``agy plugin install <target>`` reads a
+    plugin manifest (Claude/Gemini/Codex formats), materializes any bundled
+    skills under ``<HOME>/.gemini/config/plugins/<name>/`` and records the
+    install in ``<HOME>/.gemini/config/import_manifest.json``. There is no
     ``--output-format`` flag and no stdout stream protocol; structured
     tool-call data is read out of the per-conversation JSONL transcript at
     ``<appDataDir>/brain/<uuid>/.system_generated/logs/transcript.jsonl``.
+    (v1.0.5 also persists each conversation to a SQLite db under
+    ``<appDataDir>/conversations/<uuid>.db`` and calls SQLite "the CLI's
+    conversation format"; the JSONL transcript is still written alongside it,
+    but if a future release drops the JSONL the transcript parser here would
+    need to read the db instead.)
     """
 
     APP_DATA_SUBPATH = os.path.join(".gemini", "antigravity-cli")
@@ -63,12 +68,12 @@ class AgyCliGenerator(QueryGenerator):
 
         self.env = querygenerator_config.get("env") or {}
 
-        # Top-level `model` key. agy exposes no --model flag and reads no
-        # model env var, so the model is selected by writing it into
-        # settings.json -- see _initialize_settings_file. The value must be
-        # the exact agy UI label (e.g. "Gemini 3.1 Pro (High)"), not an API
-        # id; an unrecognized value is silently ignored and agy falls back
-        # to its default model.
+        # Top-level `model` key. Passed per-invocation via agy's `--model`
+        # flag (agy >=1.0.5) -- see _base_agy_command. The value must be the
+        # exact agy UI label (e.g. "Gemini 3.1 Pro (High)", as listed by
+        # `agy models`), not an API id; an unrecognized value is silently
+        # ignored and agy falls back to its default model. None -> the flag is
+        # omitted and agy uses its default.
         self.model = querygenerator_config.get("model")
 
         # Order is load-bearing: paths/dirs must exist before the binary
@@ -268,6 +273,9 @@ class AgyCliGenerator(QueryGenerator):
         and the MCP server still attaches). This is why agy is the only
         harness that writes a gcp block; the others pass the project purely
         through the environment.
+
+        The model is intentionally *not* written here -- it is selected
+        per-invocation via the ``--model`` flag (see _base_agy_command).
         """
         current_settings = {}
         if os.path.exists(self.settings_path):
@@ -282,50 +290,42 @@ class AgyCliGenerator(QueryGenerator):
 
         gcp_config = current_settings.setdefault("gcp", {})
 
-        env_project = self.env.get("GOOGLE_CLOUD_PROJECT")
-        env_location = self.env.get("GOOGLE_CLOUD_LOCATION")
-
-        # Resolve project/location/model, preferring (in order): the env /
-        # config, then any values the sandbox settings.json already carries
-        # from a previous run. The model value is an agy UI label like
-        # "Gemini 3.1 Pro (High)" -- confirmed by selecting a model via the
-        # interactive `/model` command and diffing settings.json; an
-        # unrecognized value (e.g. an API id like "gemini-2.5-pro") is
-        # silently ignored and agy falls back to its default model.
-        project = env_project or gcp_config.get("project")
-        location = env_location or gcp_config.get("location")
-        model = self.model or current_settings.get("model")
+        # Resolve project/location, preferring (in order): the env / config,
+        # then any values the sandbox settings.json already carries from a
+        # previous run, then the host's real settings.json. The model is not
+        # resolved here -- it is passed per-invocation via the ``--model`` flag.
+        project = (
+            self.env.get("GOOGLE_CLOUD_PROJECT") or gcp_config.get("project")
+        )
+        location = (
+            self.env.get("GOOGLE_CLOUD_LOCATION") or gcp_config.get("location")
+        )
 
         # Only consult the host's real settings.json for whatever the env and
         # sandbox file did not already supply. When the sandbox already covers
         # everything we skip the read entirely -- both to avoid the extra I/O
         # and to avoid noise from an empty/absent real file, which is a normal
         # state for sandboxed and CI runs.
-        if project and location and model:
+        if project and location:
             logging.info(
-                "agy settings: project/location/model satisfied by env and "
+                "agy settings: project/location satisfied by env and "
                 "sandbox %s; skipping real settings.json read.",
                 self.settings_path,
             )
         else:
-            real_settings = self._read_real_settings()
-            real_gcp = real_settings.get("gcp", {})
+            real_gcp = self._read_real_settings().get("gcp", {})
             project = project or real_gcp.get("project")
             location = location or real_gcp.get("location")
-            model = model or real_settings.get("model")
 
         location = location or "global"
 
         if project:
             gcp_config["project"] = project
-        if location:
-            gcp_config["location"] = location
-        if model:
-            current_settings["model"] = model
+        gcp_config["location"] = location
 
         logging.info(
-            "agy settings resolved: project=%s location=%s model=%s",
-            project, location, model,
+            "agy settings resolved: project=%s location=%s",
+            project, location,
         )
 
         with open(self.settings_path, "w") as f:
@@ -333,7 +333,7 @@ class AgyCliGenerator(QueryGenerator):
 
     def _read_real_settings(self) -> dict:
         """Reads the host's real ``settings.json`` as a fallback source for
-        project/location/model. Returns ``{}`` when the file is absent or
+        project/location. Returns ``{}`` when the file is absent or
         empty -- both are normal states (e.g. sandboxed/CI runs, or a fresh
         agy install) and not worth a warning. Only genuinely malformed
         (non-empty, non-JSON) content is warned about.
@@ -451,7 +451,7 @@ class AgyCliGenerator(QueryGenerator):
         before = set(os.listdir(log_dir)) if os.path.isdir(log_dir) else set()
 
         env = self._merged_env()
-        cmd = self._base_agy_command(self.agy_bin, "ping")
+        cmd = self._base_agy_command(self.agy_bin, "ping", model=self.model)
         try:
             subprocess.run(
                 cmd, env=env, cwd=self.fake_home,
@@ -553,7 +553,7 @@ class AgyCliGenerator(QueryGenerator):
     def _setup_skills(self, skills: list):
         """Installs skill-bearing plugins via ``agy plugin install``.
 
-        Verified against agy v1.0.3: ``agy plugin install <target>`` reads
+        Verified against agy v1.0.5: ``agy plugin install <target>`` reads
         a plugin manifest (Claude/Gemini/Codex formats), processes any
         bundled skills, materializes them under
         ``<HOME>/.gemini/config/plugins/<name>/`` and records the install
@@ -752,13 +752,16 @@ class AgyCliGenerator(QueryGenerator):
         """Normalizes a cross-harness MCP server config into agy's schema.
 
         agy's HTTP transport field is ``serverUrl`` (Windsurf/cortex
-        lineage), confirmed from the v1.0.3 binary's config struct
-        (``ServerUrl *string json:"serverUrl"``). There is no ``httpUrl``
-        field, so a gemini-style ``httpUrl`` value would be parsed to a
-        nil URL -- the server attaches with no transport and exposes no
-        tools, which is exactly the silent failure that made the agent
-        fall back to ``gcloud`` shell-outs. We therefore map the common
-        gemini alias ``httpUrl`` onto ``serverUrl``.
+        lineage), confirmed from the binary's config struct
+        (``ServerUrl *string json:"serverUrl"``; present through v1.0.5). A
+        gemini-style ``httpUrl`` value historically parsed to a nil URL --
+        the server attaches with no transport and exposes no tools, the
+        silent failure that made the agent fall back to ``gcloud``
+        shell-outs -- so we normalize the common gemini alias ``httpUrl``
+        onto ``serverUrl``, which agy reliably accepts. (v1.0.5 also added a
+        plain ``url`` field per the changelog, and the binary now carries an
+        ``httpUrl`` json tag too, but normalizing to ``serverUrl`` remains
+        the safe, verified path.)
 
         Everything else passes through untouched: ``authProviderType``
         (``google_credentials`` is a valid enum), ``oauth.scopes``,
@@ -780,10 +783,21 @@ class AgyCliGenerator(QueryGenerator):
         return env
 
     @staticmethod
-    def _base_agy_command(cli: str, prompt: str, resume: bool = False) -> list:
+    def _base_agy_command(
+        cli: str, prompt: str, resume: bool = False, model: str = None,
+    ) -> list:
         """Builds the non-interactive ``agy -p`` argv shared by the eval
-        turn path and the setup-time MCP probe."""
+        turn path and the setup-time MCP probe.
+
+        The model is selected with agy's ``--model`` flag (agy >=1.0.5). The
+        value is an agy UI label like "Gemini 3.1 Pro (High)" (the exact
+        strings ``agy models`` lists), not an API id; an unrecognized value is
+        silently ignored and agy falls back to its default model. When no
+        model is configured the flag is omitted and agy uses its default.
+        """
         command = [cli, "-p", prompt, "--dangerously-skip-permissions"]
+        if model:
+            command += ["--model", model]
         if resume:
             command.append("--continue")
         return command
@@ -821,7 +835,7 @@ class AgyCliGenerator(QueryGenerator):
         # the label carried on cli_cmd.cli (the evaluator passes agent_version,
         # "agy", which is not a path).
         command = self._base_agy_command(
-            self.agy_bin, cli_cmd.prompt, cli_cmd.resume
+            self.agy_bin, cli_cmd.prompt, cli_cmd.resume, self.model
         )
         cwd = cli_cmd.cwd if cli_cmd.cwd else self.fake_home
         result = self._execute_cli_command(command, env=env, cwd=cwd)
