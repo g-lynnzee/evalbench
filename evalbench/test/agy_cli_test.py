@@ -691,6 +691,18 @@ def _write_mcp_schemas(app_data_dir, server, tools):
     return server_dir
 
 
+def _write_mcp_raw_file(app_data_dir, server, filename, content):
+    """Write an arbitrary file into ``<appDataDir>/mcp/<server>/`` to
+    simulate a sidecar/junk file alongside (or instead of) real tool schemas.
+    """
+    server_dir = os.path.join(app_data_dir, "mcp", server)
+    os.makedirs(server_dir, exist_ok=True)
+    path = os.path.join(server_dir, filename)
+    with open(path, "w") as f:
+        f.write(content)
+    return path
+
+
 def _local_app_data_dir():
     # Mirrors AgyCliGenerator's local-run sandbox (.venv/fake_home_agy,
     # resolved against cwd). The MCP probe fires inside __init__ -- before a
@@ -765,6 +777,56 @@ def test_verify_mcp_runtime_passes_when_tools_attach(mock_run, sandbox):
             _local_app_data_dir(), "cloud-sql",
             ["list_instances", "get_instance", "create_instance"],
         )
+        return MagicMock(returncode=0, stdout="", stderr="")
+
+    mock_run.side_effect = fake_run
+    gen = AgyCliGenerator(config)
+
+    assert gen.name == "agy_cli"
+
+
+def test_verify_mcp_runtime_ignores_non_schema_json(mock_run, sandbox):
+    """A ``*.json`` that isn't a tool schema (sidecar file, junk, or a
+    non-object) must not be counted as a discovered tool -- otherwise a
+    silent attach failure that happens to leave stray JSON behind would
+    falsely pass verification."""
+    config = {
+        "setup": {
+            "mcp_servers": {
+                "cloud-sql": {"serverUrl": "https://example.com/mcp"},
+            }
+        }
+    }
+
+    def fake_run(cmd, *args, **kwargs):
+        app = _local_app_data_dir()
+        # A sidecar object without a name, a JSON array, and invalid JSON --
+        # none of which is a tool schema.
+        _write_mcp_raw_file(app, "cloud-sql", "metadata.json", '{"foo": 1}')
+        _write_mcp_raw_file(app, "cloud-sql", "list.json", "[1, 2, 3]")
+        _write_mcp_raw_file(app, "cloud-sql", "broken.json", "{not json")
+        return MagicMock(returncode=0, stdout="", stderr="")
+
+    mock_run.side_effect = fake_run
+    with pytest.raises(RuntimeError, match="attached no tools"):
+        AgyCliGenerator(config)
+
+
+def test_verify_mcp_runtime_counts_only_valid_schemas(mock_run, sandbox):
+    """A real tool schema sitting next to junk still passes, and only the
+    valid schema is counted as a discovered tool."""
+    config = {
+        "setup": {
+            "mcp_servers": {
+                "cloud-sql": {"serverUrl": "https://example.com/mcp"},
+            }
+        }
+    }
+
+    def fake_run(cmd, *args, **kwargs):
+        app = _local_app_data_dir()
+        _write_mcp_schemas(app, "cloud-sql", ["list_instances"])
+        _write_mcp_raw_file(app, "cloud-sql", "metadata.json", '{"foo": 1}')
         return MagicMock(returncode=0, stdout="", stderr="")
 
     mock_run.side_effect = fake_run
