@@ -489,11 +489,18 @@ class AgyCliGenerator(QueryGenerator):
             server_dir = os.path.join(mcp_schema_root, server)
             tools = []
             if os.path.isdir(server_dir):
-                tools = [
-                    f[:-len(".json")]
-                    for f in os.listdir(server_dir)
-                    if f.endswith(".json")
-                ]
+                for f in sorted(os.listdir(server_dir)):
+                    if not f.endswith(".json"):
+                        continue
+                    path = os.path.join(server_dir, f)
+                    if self._is_tool_schema_file(path):
+                        tools.append(f[:-len(".json")])
+                    else:
+                        logging.warning(
+                            "agy MCP schema cache file %s is not a valid "
+                            "tool schema; not counting it as a discovered "
+                            "tool.", path,
+                        )
             if tools:
                 loaded[server] = sorted(tools)
             else:
@@ -519,6 +526,24 @@ class AgyCliGenerator(QueryGenerator):
                 "agy MCP server '%s' attached %d tools: %s",
                 server, len(tools), tools,
             )
+
+    @staticmethod
+    def _is_tool_schema_file(path: str) -> bool:
+        """Return True iff ``path`` holds a real agy tool-schema cache entry.
+
+        agy writes one JSON file per discovered tool at attach time, each a
+        JSON object carrying at least the tool's ``name``. We validate that
+        shape rather than trusting any ``*.json`` present so a stray sidecar
+        file or leftover junk in ``<appDataDir>/mcp/<server>/`` can't be
+        miscounted as a discovered tool -- which would let a silent attach
+        failure pass verification.
+        """
+        try:
+            with open(path, "r") as f:
+                data = json.load(f)
+        except (OSError, json.JSONDecodeError):
+            return False
+        return isinstance(data, dict) and bool(data.get("name"))
 
     # A target is a git URL (to be cloned) rather than a local path or a
     # ``plugin@marketplace`` spec when it carries a remote scheme or ends
