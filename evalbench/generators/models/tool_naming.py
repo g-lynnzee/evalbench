@@ -130,14 +130,14 @@ def canonicalize_gemini_tool_name(name: str) -> str:
 
 
 # Antigravity (agy) does NOT expose MCP tools as ``mcp_<server>_<tool>``
-# top-level functions. Confirmed from the v1.0.3 binary: it has a single
+# top-level functions. Confirmed from the v1.0.5 binary: it has a single
 # native tool ``call_mcp_tool`` whose jsonschema is
 # ``{ServerName, ToolName, Arguments}`` -- the real server/tool identity
 # lives in the call *arguments*, not the tool name. So canonicalization
 # must unwrap those args rather than pattern-match the name.
 _AGY_MCP_WRAPPER = "call_mcp_tool"
 
-# The v1.0.3 schema is ``{ServerName, ToolName, Arguments}``. The Go struct
+# The v1.0.5 schema is ``{ServerName, ToolName, Arguments}``. The Go struct
 # (confirmed in the agy binary) carries no ``json:`` tags -- only
 # ``jsonschema:"required"`` / ``jsonschema_description`` -- so the JSON property
 # names are exactly the Go field names. There are no casing variants to handle.

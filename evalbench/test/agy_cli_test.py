@@ -930,42 +930,37 @@ def _written_settings(generator):
         return json.load(f)
 
 
-def test_config_model_label_written_into_settings(sandbox):
-    """A configured `model` (an agy UI label) is written into the `model`
-    key of settings.json verbatim."""
+def test_config_model_passed_as_flag():
+    """A configured `model` (an agy UI label) is appended to the command as
+    ``--model <label>`` verbatim."""
+    cmd = AgyCliGenerator._base_agy_command(
+        "agy", "hi", model="Gemini 3.1 Pro (High)"
+    )
+
+    assert "--model" in cmd
+    assert cmd[cmd.index("--model") + 1] == "Gemini 3.1 Pro (High)"
+
+
+def test_no_model_flag_when_unset():
+    """No configured model -> no ``--model`` flag is added."""
+    cmd = AgyCliGenerator._base_agy_command("agy", "hi")
+
+    assert "--model" not in cmd
+
+
+def test_run_passes_configured_model_flag(mock_run, sandbox):
+    """The turn command carries the configured model via ``--model``."""
     generator = AgyCliGenerator({"model": "Gemini 3.1 Pro (High)"})
+    generator._run_agy_cli(CLICommand(generator.agy_bin, "hi"))
 
-    assert _written_settings(generator).get("model") == "Gemini 3.1 Pro (High)"
-
-
-def test_model_falls_back_to_real_settings(sandbox):
-    """With no model in config, the host's real settings.json model (set via
-    the agy UI `/model` command) is inherited."""
-    real_app_data = sandbox / APP_DATA_SUBPATH
-    real_app_data.mkdir(parents=True)
-    with open(real_app_data / "settings.json", "w") as f:
-        json.dump({"model": "Gemini 3.5 Flash (Medium)"}, f)
-
-    generator = AgyCliGenerator({})
-
-    assert _written_settings(generator).get("model") == "Gemini 3.5 Flash (Medium)"
+    argv = list(mock_run.call_args_list[-1].args[0])
+    assert argv[argv.index("--model") + 1] == "Gemini 3.1 Pro (High)"
 
 
-def test_config_model_overrides_real_settings(sandbox):
-    """An explicit config model takes precedence over the real settings."""
-    real_app_data = sandbox / APP_DATA_SUBPATH
-    real_app_data.mkdir(parents=True)
-    with open(real_app_data / "settings.json", "w") as f:
-        json.dump({"model": "Gemini 3.5 Flash (Medium)"}, f)
-
+def test_model_never_written_to_settings(sandbox):
+    """The model is selected via the flag, not the settings.json `model`
+    key -- so no `model` key is ever written there."""
     generator = AgyCliGenerator({"model": "Gemini 3.1 Pro (High)"})
-
-    assert _written_settings(generator).get("model") == "Gemini 3.1 Pro (High)"
-
-
-def test_no_model_key_when_unset(sandbox):
-    """No model anywhere -> no model key is written to settings.json."""
-    generator = AgyCliGenerator({})
 
     assert "model" not in _written_settings(generator)
 

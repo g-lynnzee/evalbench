@@ -6,9 +6,10 @@ of [`gemini_cli_agent_testing.md`](gemini_cli_agent_testing.md) and only calls
 out where the two harnesses differ.
 
 > **Status:** the agy CLI surface targeted here was verified against the
-> v1.0.3 binary. Model selection works via the `settings.json` `model` key,
-> but the value must be the exact agy UI label (see the model-selection note
-> below and the comment in `datasets/model_configs/agy_cli_model.yaml`).
+> v1.0.5 binary (the self-updating installer pulls the latest). Model
+> selection is passed via agy's `--model` flag, and the value must be the
+> exact agy UI label (see the model-selection note below and the comment in
+> `datasets/model_configs/agy_cli_model.yaml`).
 
 > [!IMPORTANT]
 > **First-run auth:** agy uses an OAuth consumer flow backed by the system
@@ -178,27 +179,23 @@ reporting:
 | Key | Required | Description |
 |-----|----------|-------------|
 | `generator` | Yes | Must be `agy_cli` |
-| `model` | Optional | agy UI model label, e.g. `"Gemini 3.1 Pro (High)"`. Written into `settings.json`. Must be a valid label, not an API id. |
+| `model` | Optional | agy UI model label, e.g. `"Gemini 3.1 Pro (High)"`. Passed via the `--model` flag. Must be a valid label, not an API id. |
 | `env` | Optional | Environment variables passed to the CLI process |
 | `setup` | Optional | Tool setup block containing `mcp_servers`, `skills`, or `fake_mcp_servers` |
 
 > [!NOTE]
-> **Model selection is not env-driven; use a UI label.** The agy binary
-> reads no model env var (verified via `strings` on the v1.0.3 binary -- no
-> `AGY_MODEL` / `ANTIGRAVITY_MODEL` / `GEMINI_MODEL` lookup exists) and has no
-> `--model` flag. Selection is read from the `model` key of
-> `~/.gemini/antigravity-cli/settings.json`, which the harness writes from the
-> `model` config key. The value must be the **exact agy UI label** (e.g.
-> `"Gemini 3.1 Pro (High)"`, `"Gemini 3.5 Flash (Medium)"`), not an API id
-> like `gemini-2.5-pro` -- an unrecognized value is silently ignored and agy
-> falls back to its default model. Get the exact label by running `/model` in
-> interactive agy and reading what it writes to `settings.json`. A
-> non-interactive `agy -p` run honors the label (the backend log shows
-> `Propagating selected model override to backend: label="..."`), even though
-> the unrelated `FetchAvailableModels` poll may fail on project-auth accounts.
-> Omit the key to inherit whatever model the host's real `settings.json` last
-> selected. Note: the transcript never echoes the real model, so the EvalBench
-> stats bucket is keyed by the configured label (or `agy` when unset).
+> **Model selection uses the `--model` flag; use a UI label.** The harness
+> passes the configured `model` via agy's `--model` flag (agy >=1.0.5). The
+> value must be the **exact agy UI label** (e.g. `"Gemini 3.1 Pro (High)"`,
+> `"Gemini 3.5 Flash (Medium)"`), not an API id like `gemini-2.5-pro` -- an
+> unrecognized value is silently ignored and agy falls back to its default
+> model. List the valid labels with `agy models`. A non-interactive `agy -p`
+> run honors the label (the backend log shows `Propagating selected model
+> override to backend: label="..."`), even though the unrelated
+> `FetchAvailableModels` poll may fail on project-auth accounts. Omit the key
+> to leave the flag off, so agy uses its own default model. Note: the
+> transcript never echoes the real model, so the EvalBench stats bucket is
+> keyed by the configured label (or `agy` when unset).
 
 ---
 
@@ -219,7 +216,7 @@ identical baseline.
 Configured under `setup.mcp_servers` in the model config. EvalBench writes
 the block under the `mcpServers` key of a sandboxed
 `<fake_home>/.gemini/config/mcp_config.json` (a separate file from
-`settings.json`; both path and key are confirmed from the v1.0.3 binary's
+`settings.json`; both path and key are confirmed from the v1.0.5 binary's
 load-error string and `json:"mcpServers"` struct tag) and lets agy pick it
 up at startup.
 
@@ -254,7 +251,7 @@ with the offending server name rather than silently degrading. See
 > paths and are configured independently.
 
 Configured under `setup.skills`. Skills are delivered via **plugins**:
-verified against agy v1.0.3, `agy plugin install <target>` reads a plugin
+verified against agy v1.0.5, `agy plugin install <target>` reads a plugin
 manifest (Claude/Gemini/Codex formats), processes any bundled skills,
 materializes them under `<HOME>/.gemini/config/plugins/<name>/`, and
 records the install in `<HOME>/.gemini/config/import_manifest.json`. There
@@ -316,9 +313,9 @@ for a working example.
 | MCP config location | `mcpServers` in `settings.json` | `mcpServers` in a separate `~/.gemini/config/mcp_config.json` |
 | MCP HTTP transport field | `httpUrl` | `serverUrl` (no `httpUrl` field; `httpUrl` is auto-translated by the harness) |
 | MCP tool name format | `mcp_<server>_<tool>` (single underscore) | No per-tool functions -- every MCP call goes through a single native `call_mcp_tool` wrapper whose args carry `ServerName`/`ToolName`/`Arguments`; the harness unwraps it to the canonical `<server>__<tool>` (see `canonicalize_agy_tool_name` in `tool_naming.py`) |
-| Model selection | `GEMINI_API_MODEL` / `GEMINI_MODEL` env var | `model` key in `settings.json`; value is a UI label (e.g. `"Gemini 3.1 Pro (High)"`), not an API id |
+| Model selection | `GEMINI_API_MODEL` / `GEMINI_MODEL` env var | `--model` flag (agy >=1.0.5); value is a UI label (e.g. `"Gemini 3.1 Pro (High)"`), not an API id |
 | Auth | NPM auth token via `gcloud auth print-access-token` plus ADC | OAuth (keyring-backed); ADC not required by agy itself |
-| Token-usage stats | Reported per request | Not exposed; transcript carries no token counts. `token_consumption` scorer returns zeros |
+| Token-usage stats | Reported per request | Not exposed; transcript carries no token counts (verified through agy v1.0.5). `token_consumption` is omitted from the agy example configs since it would only ever report zero |
 
 ### Tool-call extraction (transcript JSONL)
 
