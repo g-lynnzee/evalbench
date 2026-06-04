@@ -76,3 +76,8 @@ dev = [
 [[tool.uv.index]]
 url = "https://pypi.org/simple"
 default = true
+
+[tool.pytest.ini_options]
+markers = [
+    "real_agy_install: exercise the real agy installer path (opts out of the autouse install stub)",
+]
