@@ -44,6 +44,7 @@ container:
 		$(if $(filter podman,$(CONTAINER_ENGINE)),--sysctl net.ipv6.conf.all.disable_ipv6=1) \
 		$(if $(filter docker,$(CONTAINER_ENGINE)),--net=host) \
 		-v ~/.config/gcloud:/root/.config/gcloud \
+		-v ~/.gemini/antigravity-cli:/root/.gemini/antigravity-cli:ro \
 		-e GOOGLE_CLOUD_PROJECT=cloud-db-nl2sql \
 		-e MESOP_XSRF_CHECK=false \
 		--cap-add=SYS_PTRACE \
@@ -59,6 +60,7 @@ shell:
 		$(if $(filter docker,$(CONTAINER_ENGINE)),--net=host) \
 		--cap-add=SYS_PTRACE \
 		-v ~/.config/gcloud:/root/.config/gcloud \
+		-v ~/.gemini/antigravity-cli:/root/.gemini/antigravity-cli:ro \
 		-v $(PWD)/evalbench:/evalbench/evalbench \
 		-v $(PWD)/viewer:/evalbench/viewer \
 		-p 3000:3000 \

@@ -21,31 +21,6 @@ AGY_CLI = "agy"
 # location and skips the download when the binary already exists at the target.
 AGY_INSTALL_URL = "https://antigravity.google/cli/install.sh"
 
-# Accepts a Secret Manager resource path with a numeric version or ``latest``.
-# Unlike the shared ``get_db_secret`` helper (numeric only), agy OAuth tokens
-# rotate, so ``latest`` is the common case. Note: ``latest`` is resolved once,
-# at init time, and the fetched token is snapshotted into the sandboxed auth
-# files -- a mid-run rotation does not take effect for the live process.
-_AGY_SECRET_PATH_RE = re.compile(
-    r"^projects/[^/]+/secrets/[^/]+/versions/(\d+|latest)$"
-)
-
-
-def _fetch_agy_secret(path: str) -> str:
-    """Returns the decoded payload of a Secret Manager version.
-
-    ``path`` is ``projects/<p>/secrets/<s>/versions/<N|latest>``. The import is
-    local to avoid pulling the Secret Manager client into non-secret runs.
-    """
-    if not _AGY_SECRET_PATH_RE.match(path):
-        raise ValueError(
-            f"Not a Secret Manager resource path "
-            f"(projects/.../secrets/.../versions/<N|latest>): {path}"
-        )
-    from databases.util import access_secret
-
-    return access_secret(path)
-
 
 class CLICommand:
     def __init__(self, cli, prompt, env=None, resume=False, cwd=None):
@@ -95,19 +70,6 @@ class AgyCliGenerator(QueryGenerator):
         # id; an unrecognized value is silently ignored and agy falls back
         # to its default model.
         self.model = querygenerator_config.get("model")
-
-        # Optional Secret Manager sources for agy's auth files. When set, they
-        # take precedence over mirroring from the host's real appDataDir -- the
-        # canonical path for CI, where there is no interactive login on disk.
-        # Values are Secret Manager resource paths
-        # (projects/.../secrets/.../versions/<N|latest>), parallel to codex's
-        # openai_api_key_secret.
-        self.oauth_token_secret = querygenerator_config.get(
-            "agy_oauth_token_secret"
-        )
-        self.installation_id_secret = querygenerator_config.get(
-            "agy_installation_id_secret"
-        )
 
         # Order is load-bearing: paths/dirs must exist before the binary
         # installs and settings/auth write into them, and self.env must carry
@@ -202,7 +164,8 @@ class AgyCliGenerator(QueryGenerator):
         for cmd, what in steps:
             try:
                 result = subprocess.run(
-                    cmd, env=env, capture_output=True, text=True,
+                    cmd, env=env, stdin=subprocess.DEVNULL,
+                    capture_output=True, text=True,
                     timeout=300, check=False,
                 )
             except (FileNotFoundError, subprocess.TimeoutExpired) as e:
@@ -252,62 +215,35 @@ class AgyCliGenerator(QueryGenerator):
             )
 
     def _mirror_agy_auth_state(self):
-        """Seeds agy's OAuth token + installation id into the sandboxed
-        appDataDir so the sandboxed CLI does not re-prompt for an interactive
-        login.
+        """Mirrors agy's OAuth token + installation id from the host's real
+        appDataDir into the sandboxed appDataDir so the sandboxed CLI does not
+        re-prompt for an interactive login.
 
         agy is OAuth-only (no env-var API key, no ADC), and the harness
         overrides ``HOME``, so without this the sandbox looks like a
         brand-new install and ``agy -p`` blocks on the device-code URL.
 
-        Each auth file is sourced independently, preferring Secret Manager
-        when ``agy_oauth_token_secret`` / ``agy_installation_id_secret`` are
-        configured (the CI path -- no interactive login exists on disk), and
-        otherwise mirroring from the host's real appDataDir at
-        ``~/.gemini/antigravity-cli/`` (the local-dev path -- run ``agy``
-        once interactively to seed it; this then refreshes the copy on every
-        run).
+        Auth comes from the host's real appDataDir at
+        ``~/.gemini/antigravity-cli/`` -- run ``agy`` once interactively to
+        seed it; this then refreshes the copy on every run. The token is
+        load-bearing (required=True); a missing installation_id is non-fatal
+        for agy (required=False).
         """
         real_app_data = os.path.join(self.real_home, self.APP_DATA_SUBPATH)
 
-        # The token is load-bearing (required=True); a missing installation_id
-        # is non-fatal for agy (required=False).
         auth_files = (
-            ("antigravity-oauth-token", self.oauth_token_secret, True),
-            ("installation_id", self.installation_id_secret, False),
+            ("antigravity-oauth-token", True),
+            ("installation_id", False),
         )
 
-        for fname, secret_path, required in auth_files:
+        for fname, required in auth_files:
             dst = os.path.join(self.app_data_dir, fname)
-
-            if secret_path:
-                try:
-                    payload = _fetch_agy_secret(secret_path)
-                except Exception as e:
-                    msg = (
-                        f"Failed to fetch agy {fname} from Secret Manager "
-                        f"({secret_path}): {e}"
-                    )
-                    if required:
-                        raise RuntimeError(msg) from e
-                    logging.warning(msg)
-                    continue
-                with open(dst, "w") as f:
-                    f.write(payload)
-                os.chmod(dst, 0o600)
-                logging.info(
-                    "Seeded agy %s from Secret Manager (%s).",
-                    fname, secret_path,
-                )
-                continue
-
             src = os.path.join(real_app_data, fname)
             if not os.path.exists(src):
                 if required:
                     logging.warning(
-                        "agy OAuth token not found at %s and no "
-                        "agy_oauth_token_secret configured -- run `agy` "
-                        "interactively once, or set the secret for CI.",
+                        "agy OAuth token not found at %s -- run `agy` "
+                        "interactively once to authenticate.",
                         src,
                     )
                 continue
@@ -519,13 +455,16 @@ class AgyCliGenerator(QueryGenerator):
         try:
             subprocess.run(
                 cmd, env=env, cwd=self.fake_home,
-                capture_output=True, text=True, timeout=120, check=False,
+                stdin=subprocess.DEVNULL, capture_output=True, text=True,
+                timeout=120, check=False,
             )
         except (FileNotFoundError, subprocess.TimeoutExpired) as e:
             raise RuntimeError(
                 f"agy MCP verification probe failed to run: {e}. "
-                f"Configured MCP servers: {configured_servers}.",
-            )
+                f"Configured MCP servers: {configured_servers}.\n"
+                f"STDOUT:\n{getattr(e, 'stdout', '')}\n"
+                f"STDERR:\n{getattr(e, 'stderr', '')}"
+            ) from e
 
         # Collect fatal log markers (diagnostic context for any failure).
         after = set(os.listdir(log_dir)) if os.path.isdir(log_dir) else set()
@@ -729,8 +668,8 @@ class AgyCliGenerator(QueryGenerator):
 
         try:
             result = subprocess.run(
-                cmd, capture_output=True, text=True, check=False,
-                env=env, timeout=120,
+                cmd, stdin=subprocess.DEVNULL, capture_output=True,
+                text=True, check=False, env=env, timeout=120,
             )
             if result.returncode != 0:
                 logging.error(
@@ -835,7 +774,7 @@ class AgyCliGenerator(QueryGenerator):
         try:
             return subprocess.run(
                 command,
-                capture_output=True,
+                stdin=subprocess.DEVNULL, capture_output=True,
                 text=True,
                 check=False,
                 env=env,
