@@ -514,7 +514,8 @@ class AgyCliGenerator(QueryGenerator):
                 f"agy MCP server(s) {failed} attached no tools "
                 f"(no schemas under {mcp_schema_root}/<server>/). The "
                 "server likely failed to load -- check the URL field "
-                "(agy uses 'serverUrl', not 'httpUrl'), auth, and "
+                "(use 'serverUrl' or 'url'; a gemini-style 'httpUrl' is "
+                "auto-translated), auth, and "
                 "reachability. agy degrades silently to shell-outs when "
                 "MCP tools are missing."
             )
@@ -754,9 +755,11 @@ class AgyCliGenerator(QueryGenerator):
     def _translate_mcp_config(config: dict) -> dict:
         """Normalizes a cross-harness MCP server config into agy's schema.
 
-        Maps the common gemini-style ``httpUrl`` alias to ``serverUrl``, which
-        agy reliably accepts. Other fields like ``authProviderType``,
-        ``oauth.scopes``, and stdio fields pass through natively.
+        Maps the common gemini-style ``httpUrl`` alias to ``serverUrl``, agy's
+        native field. ``serverUrl`` and ``url`` (v1.0.5+) are accepted by agy
+        directly and need no translation. Other fields like
+        ``authProviderType``, ``oauth.scopes``, and stdio fields pass through
+        natively.
         """
         if "httpUrl" in config and "serverUrl" not in config:
             config["serverUrl"] = config.pop("httpUrl")
