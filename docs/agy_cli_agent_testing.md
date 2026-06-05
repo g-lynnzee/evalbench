@@ -234,16 +234,10 @@ the block under the `mcpServers` key of a sandboxed
 `settings.json`) and lets agy pick it up at startup.
 
 > [!IMPORTANT]
-> **Use `serverUrl` for the HTTP endpoint.** `serverUrl` is agy's native
-> transport field, and `url` also works as of
-> v1.0.5. A Gemini-style `httpUrl` works too, because EvalBench rewrites it
-> to `serverUrl` before writing the config (`_translate_mcp_config`) -- so
-> you never depend on agy parsing `httpUrl` natively. Prefer `serverUrl` for
-> clarity. An *unrecognized* URL
-> key is accepted silently and exposes zero tools, but the setup-time probe
-> (`_verify_mcp_runtime`, below) catches that. `authProviderType`,
-> `oauth.scopes`, and `headers` are native agy fields, so Google auth works
-> without Bearer-header injection (unlike `claude_code`).
+> **Use `serverUrl` for the HTTP endpoint** (`url` also works as of v1.0.5);
+> a Gemini-style `httpUrl` is auto-translated by the harness.
+> `authProviderType`, `oauth.scopes`, and `headers` are native agy fields, so
+> Google auth works without Bearer-header injection (unlike `claude_code`).
 
 The harness pre-verifies attach: at setup it runs
 a short `agy -p` probe, then confirms each configured server discovered
@@ -398,10 +392,9 @@ The harness pre-verifies attach at setup (`_verify_mcp_runtime`): it runs a
 short `agy -p` probe and fails fast with a `RuntimeError` if a configured
 server discovered no tools. If you hit that error:
 
-- **Check the URL field:** use `serverUrl` (native) or `url` (v1.0.5+);
-  a Gemini-style `httpUrl` is auto-translated by the harness. An
-  *unrecognized* URL key is accepted silently and exposes zero tools, so a
-  typo'd key looks like a load failure.
+- **Check the URL field** (see the MCP Servers callout above): a typo'd or
+  unrecognized URL key is accepted silently and exposes zero tools, so it
+  looks like a load failure.
 - Confirm the block lives under `mcpServers` in
   `<fake_home>/.gemini/config/mcp_config.json` (not `settings.json`) after
   setup runs.
