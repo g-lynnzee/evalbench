@@ -69,9 +69,12 @@ Run Config -> AgentOrchestrator -> AgentEvaluator -> AgyCliGenerator -> agy
                                               MCP servers / skills
 ```
 
-The dispatch keyword in `evaluator/__init__.py` is still `geminicli`; that
-string covers all agent-style CLI generators (gemini_cli, claude_code,
-codex_cli, agy_cli). The concrete CLI is chosen via `model_config`.
+`evaluator/__init__.py` routes both the modern `agent` keyword and the
+legacy `geminicli` keyword to `AgentOrchestrator`
+(`orchestrator_type in ("geminicli", "agent")`); use `agent` for non-gemini
+CLIs. The keyword only selects the orchestrator -- the concrete CLI
+generator (gemini_cli, claude_code, codex_cli, agy_cli) is chosen via the
+`generator` field in `model_config`.
 
 ---
 
@@ -83,7 +86,7 @@ codex_cli, agy_cli). The concrete CLI is chosen via `model_config`.
    uv sync
    ```
 
-2. **Antigravity CLI installed and on `PATH`**:
+2. **Antigravity CLI installed (for the one-time interactive auth)**:
    ```bash
    curl -fsSL https://antigravity.google/cli/install.sh | sh -s -- --dir ~/.local/bin
    export PATH="$HOME/.local/bin:$PATH"
@@ -91,11 +94,21 @@ codex_cli, agy_cli). The concrete CLI is chosen via `model_config`.
    ```
 
    The installer writes a SHA-512-verified native binary; it self-updates in
-   the background and does not expose a pinning flag. The Docker image at
-   `evalbench_service/Dockerfile` does the equivalent install into
-   `/usr/local/bin`.
+   the background and does not expose a pinning flag.
 
-3. **GCP Authentication** (for Vertex AI models and MCP servers):
+   > [!NOTE]
+   > **The harness does not run this host binary.** `AgyCliGenerator`
+   > installs its own copy of `agy` per session into
+   > `<fake_home>/.local/bin` (see `_ensure_agy_installed`) and always
+   > launches that one, never the host `PATH` binary. Installing on the host
+   > is only needed for the one-time interactive login (next step) that
+   > seeds the OAuth token the harness mirrors into the sandbox.
+   > Per-session install keeps concurrent evals isolated and stops agy's
+   > background self-update from swapping the binary mid-run.
+
+3. **GCP Authentication** (ADC -- for Google-auth MCP servers' outbound
+   credentials; agy's own model backend uses the first-run OAuth token, not
+   ADC):
    ```bash
    gcloud auth application-default login
    ```
@@ -183,19 +196,24 @@ reporting:
 | `env` | Optional | Environment variables passed to the CLI process |
 | `setup` | Optional | Tool setup block containing `mcp_servers`, `skills`, or `fake_mcp_servers` |
 
+> [!IMPORTANT]
+> **agy reads its Vertex project from `settings.json`, not the
+> environment.** Set `GOOGLE_CLOUD_PROJECT` (and optionally
+> `GOOGLE_CLOUD_LOCATION`) in the `env` block as usual; the harness writes
+> them into agy's `<appDataDir>/settings.json` under `gcp.project` /
+> `gcp.location` (`_initialize_settings_file`), which is where agy actually
+> reads the project from. Without that block agy returns empty responses
+> and makes no tool calls even with the env var exported. Location defaults
+> to `global` when unset.
+
 > [!NOTE]
 > **Model selection uses the `--model` flag; use a UI label.** The harness
 > passes the configured `model` via agy's `--model` flag (agy >=1.0.5). The
 > value must be the **exact agy UI label** (e.g. `"Gemini 3.1 Pro (High)"`,
 > `"Gemini 3.5 Flash (Medium)"`), not an API id like `gemini-2.5-pro` -- an
 > unrecognized value is silently ignored and agy falls back to its default
-> model. List the valid labels with `agy models`. A non-interactive `agy -p`
-> run honors the label (the backend log shows `Propagating selected model
-> override to backend: label="..."`), even though the unrelated
-> `FetchAvailableModels` poll may fail on project-auth accounts. Omit the key
-> to leave the flag off, so agy uses its own default model. Note: the
-> transcript never echoes the real model, so the EvalBench stats bucket is
-> keyed by the configured label (or `agy` when unset).
+> model. List the valid labels with `agy models`. Omit the key to leave the
+> flag off, so agy uses its own default model.
 
 ---
 
@@ -300,7 +318,7 @@ for a working example.
 | Area | Gemini CLI | Antigravity (agy) |
 |------|-----------|--------------------|
 | Install | `npm install -g @google/gemini-cli@<ver>` | `curl install.sh \| sh -- --dir <bin>` |
-| Version pinning | NPM specifier in `gemini_cli_version` | None exposed; binary self-updates |
+| Version pinning | NPM specifier in `gemini_cli_version` | None exposed; binary self-updates (set `AGY_CLI_DISABLE_AUTO_UPDATE=true` to freeze it, as the Docker image does) |
 | Invocation | `npm exec --yes @google/gemini-cli@<ver> -- ...` | `agy ...` (bare binary) |
 | Non-interactive flag | `--yolo` / `--prompt` | `--dangerously-skip-permissions` and `-p` (alias `--print`) |
 | Output format | `--output-format stream-json` (NDJSON on stdout) | Plain text on stdout; structured tool-call data lives in the per-conversation transcript JSONL (see below) |
@@ -376,8 +394,10 @@ BigQuery under `reporting.bigquery.gcp_project_id`.
 
 ### `agy: command not found`
 
-The CLI is not on `PATH`. Re-run the installer with `--dir` pointing at a
-directory that's on your `PATH`, or symlink the binary into one.
+This affects the **host** `agy` command -- used for the first-run auth and
+for `agy models` / `agy --version` -- not the eval run, which launches the
+harness's own per-session binary. Re-run the installer with `--dir` pointing
+at a directory on your `PATH`, or symlink the binary into one.
 
 ### MCP Server Doesn't Attach
 
