@@ -1,6 +1,6 @@
 # Antigravity (agy) CLI Evaluation Guide
 
-This guide covers how to use EvalBench for evaluating Antigravity CLI (`agy`)
+This guide covers how to use EvalBench for evaluating [Antigravity CLI](https://antigravity.google/product/antigravity-cli) (`agy`)
 agent workflows using **MCP Servers** and **Skills**. It mirrors the structure
 of [`gemini_cli_agent_testing.md`](gemini_cli_agent_testing.md) and only calls
 out where the two harnesses differ.
