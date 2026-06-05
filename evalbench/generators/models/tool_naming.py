@@ -28,6 +28,7 @@ special cases.
 
 from __future__ import annotations
 
+import json
 import re
 from typing import Optional, Tuple
 
@@ -122,6 +123,75 @@ def canonicalize_gemini_tool_name(name: str) -> str:
     is returned as-is.
     """
     parsed = parse_gemini_mcp_tool_name(name)
+    if parsed is None:
+        return name
+    server, tool = parsed
+    return canonical_tool_name(server, tool)
+
+
+# Antigravity (agy) does NOT expose MCP tools as ``mcp_<server>_<tool>``
+# top-level functions. Confirmed from the v1.0.5 binary: it has a single
+# native tool ``call_mcp_tool`` whose jsonschema is
+# ``{ServerName, ToolName, Arguments}`` -- the real server/tool identity
+# lives in the call *arguments*, not the tool name. So canonicalization
+# must unwrap those args rather than pattern-match the name.
+_AGY_MCP_WRAPPER = "call_mcp_tool"
+
+# The v1.0.5 schema is ``{ServerName, ToolName, Arguments}``. The Go struct
+# (confirmed in the agy binary) carries no ``json:`` tags -- only
+# ``jsonschema:"required"`` / ``jsonschema_description`` -- so the JSON property
+# names are exactly the Go field names. There are no casing variants to handle.
+_AGY_SERVER_KEY = "ServerName"
+_AGY_TOOL_KEY = "ToolName"
+
+
+def _agy_decode_scalar(value) -> str:
+    """Decode an agy tool-call arg value to a plain string.
+
+    agy stores each ``call_mcp_tool`` arg value as a raw JSON token, so a
+    string value arrives JSON-encoded *with* its surrounding quotes, e.g.
+    ``args["ServerName"]`` is the 11-char string ``"cloud-sql"`` (quotes
+    included). Round-tripping through ``json.loads`` strips the quoting;
+    if the value isn't valid JSON we fall back to the raw string.
+    """
+    if isinstance(value, str):
+        try:
+            decoded = json.loads(value)
+            if isinstance(decoded, str):
+                return decoded
+        except (json.JSONDecodeError, ValueError):
+            pass
+        return value
+    return str(value)
+
+
+def parse_agy_mcp_tool_call(name: str, args: Optional[dict]):
+    """Parse an agy MCP wrapper call into ``(server, tool)``.
+
+    Returns ``(server, tool)`` if ``name`` is the ``call_mcp_tool`` wrapper
+    and both server and tool names are present in ``args``; otherwise
+    ``None``. Server/tool values are JSON-decoded (agy quotes them).
+    """
+    if name != _AGY_MCP_WRAPPER or not isinstance(args, dict):
+        return None
+    server = args.get(_AGY_SERVER_KEY)
+    tool = args.get(_AGY_TOOL_KEY)
+    if not server or not tool:
+        return None
+    return _agy_decode_scalar(server), _agy_decode_scalar(tool)
+
+
+def canonicalize_agy_tool_name(name: str, args: Optional[dict] = None) -> str:
+    """Convert an agy tool name to canonical form.
+
+    MCP calls arrive as the ``call_mcp_tool`` wrapper with the real
+    server/tool in ``args``; those are unwrapped to ``<server>__<tool>``.
+    Native agy tools (``run_command``, ``read_file``, ``write_to_file``,
+    ``activate_skill``, ...) pass through unchanged. A ``call_mcp_tool``
+    whose args lack a usable server/tool pair is returned as-is so the
+    raw value stays visible for debugging.
+    """
+    parsed = parse_agy_mcp_tool_call(name, args)
     if parsed is None:
         return name
     server, tool = parsed

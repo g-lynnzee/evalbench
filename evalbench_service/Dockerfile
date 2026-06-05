@@ -19,9 +19,14 @@ RUN \
 RUN curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg \
   && echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list && \
   apt-get update -y && \
-  apt-get install -y google-cloud-cli 
+  apt-get install -y google-cloud-cli
 
-
+# agy is not installed at build time; the harness installs it per session at
+# runtime (AgyCliGenerator._ensure_agy_installed). This env var has no install
+# to pair with here on purpose: it propagates into the runtime agy subprocess
+# and disables its background self-update so a binary can't swap versions
+# mid-eval.
+ENV AGY_CLI_DISABLE_AUTO_UPDATE=true
 
 WORKDIR /evalbench
 COPY pyproject.toml uv.lock ./

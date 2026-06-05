@@ -52,7 +52,7 @@ class ClaudeCodeGenerator(QueryGenerator):
         # (used to run Claude Code) can write to it.
         self._chown_for_claudeuser = os.getuid() == 0
 
-        self.env = querygenerator_config.get("env", {})
+        self.env = querygenerator_config.get("env") or {}
         self.env["HOME"] = self.fake_home
         self.env["IS_SANDBOX"] = "1"
 
