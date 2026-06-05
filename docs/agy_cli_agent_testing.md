@@ -96,15 +96,15 @@ generator (gemini_cli, claude_code, codex_cli, agy_cli) is chosen via the
    The installer writes a SHA-512-verified native binary; it self-updates in
    the background and does not expose a pinning flag.
 
-   > [!NOTE]
-   > **The harness does not run this host binary.** `AgyCliGenerator`
-   > installs its own copy of `agy` per session into
-   > `<fake_home>/.local/bin` (see `_ensure_agy_installed`) and always
-   > launches that one, never the host `PATH` binary. Installing on the host
-   > is only needed for the one-time interactive login (next step) that
-   > seeds the OAuth token the harness mirrors into the sandbox.
-   > Per-session install keeps concurrent evals isolated and stops agy's
-   > background self-update from swapping the binary mid-run.
+> [!NOTE]
+> **The harness does not run this host binary.** `AgyCliGenerator`
+> installs its own copy of `agy` per session into
+> `<fake_home>/.local/bin` (see `_ensure_agy_installed`) and always
+> launches that one, never the host `PATH` binary. Installing on the host
+> is only needed for the one-time interactive login (next step) that
+> seeds the OAuth token the harness mirrors into the sandbox.
+> Per-session install keeps concurrent evals isolated and stops agy's
+> background self-update from swapping the binary mid-run.
 
 3. **GCP Authentication** (ADC -- for Google-auth MCP servers' outbound
    credentials; agy's own model backend uses the first-run OAuth token, not
@@ -239,15 +239,17 @@ load-error string and `json:"mcpServers"` struct tag) and lets agy pick it
 up at startup.
 
 > [!IMPORTANT]
-> **agy's HTTP transport field is `serverUrl`, not `httpUrl`.** This is the
-> Windsurf/cortex lineage; the binary has no `httpUrl` field, so a
-> Gemini-style `httpUrl` is parsed to a nil URL and the server attaches with
-> **no transport and zero tools** -- a silent failure that makes the agent
-> fall back to `gcloud` shell-outs. EvalBench auto-translates a `httpUrl`
-> alias to `serverUrl` (`_translate_mcp_config`), but prefer writing
-> `serverUrl` directly. `authProviderType`, `oauth.scopes`, and `headers`
-> are native agy fields, so Google auth works without Bearer-header
-> injection (unlike `claude_code`).
+> **Use `serverUrl` for the HTTP endpoint.** `serverUrl` is agy's native
+> transport field (the Windsurf/cortex lineage). `url` also works as of
+> v1.0.5 (release notes: "Added support for `url` in `mcp_config.json` to
+> configure MCP servers directly via a URL"). A Gemini-style `httpUrl` works
+> too, because EvalBench rewrites it to `serverUrl` before writing the
+> config (`_translate_mcp_config`) -- so you never depend on agy parsing
+> `httpUrl` natively. Prefer `serverUrl` for clarity. An *unrecognized* URL
+> key is accepted silently and exposes zero tools, but the setup-time probe
+> (`_verify_mcp_runtime`, below) catches that. `authProviderType`,
+> `oauth.scopes`, and `headers` are native agy fields, so Google auth works
+> without Bearer-header injection (unlike `claude_code`).
 
 Unlike older notes, the harness **does** pre-verify attach: at setup it runs
 a short `agy -p` probe, then confirms each configured server discovered
@@ -329,7 +331,7 @@ for a working example.
 | Skill management | `gemini skills <link\|install\|enable\|...>` subcommands | `agy plugin install <target>` (plugin manifests carry skills); no `agy skills` subcommand |
 | Extensions | Supported via `setup.extensions` | Not modeled; drop the block |
 | MCP config location | `mcpServers` in `settings.json` | `mcpServers` in a separate `~/.gemini/config/mcp_config.json` |
-| MCP HTTP transport field | `httpUrl` | `serverUrl` (no `httpUrl` field; `httpUrl` is auto-translated by the harness) |
+| MCP HTTP transport field | `httpUrl` | `serverUrl` (native); `url` also accepted as of v1.0.5; a Gemini-style `httpUrl` is auto-translated to `serverUrl` by the harness |
 | MCP tool name format | `mcp_<server>_<tool>` (single underscore) | No per-tool functions -- every MCP call goes through a single native `call_mcp_tool` wrapper whose args carry `ServerName`/`ToolName`/`Arguments`; the harness unwraps it to the canonical `<server>__<tool>` (see `canonicalize_agy_tool_name` in `tool_naming.py`) |
 | Model selection | `GEMINI_API_MODEL` / `GEMINI_MODEL` env var | `--model` flag (agy >=1.0.5); value is a UI label (e.g. `"Gemini 3.1 Pro (High)"`), not an API id |
 | Auth | NPM auth token via `gcloud auth print-access-token` plus ADC | OAuth (keyring-backed); ADC not required by agy itself |
@@ -405,8 +407,10 @@ The harness pre-verifies attach at setup (`_verify_mcp_runtime`): it runs a
 short `agy -p` probe and fails fast with a `RuntimeError` if a configured
 server discovered no tools. If you hit that error:
 
-- **Check the URL field first:** agy uses `serverUrl`, **not** `httpUrl`. A
-  wrong field is accepted silently and exposes zero tools.
+- **Check the URL field:** use `serverUrl` (native) or `url` (v1.0.5+);
+  a Gemini-style `httpUrl` is auto-translated by the harness. An
+  *unrecognized* URL key is accepted silently and exposes zero tools, so a
+  typo'd key looks like a load failure.
 - Confirm the block lives under `mcpServers` in
   `<fake_home>/.gemini/config/mcp_config.json` (not `settings.json`) after
   setup runs.
