@@ -56,7 +56,7 @@ class AgentEvaluator:
             return self._evaluate_agent_cli(dataset, job_id, run_time)
         else:
             raise NotImplementedError(
-                "This evaluator currently only supports AgentCliGenerator subclasses")
+                "This evaluator currently only supports GeminiCliGenerator, ClaudeCodeGenerator, CodexCliGenerator and AgyCliGenerator")
 
     def _evaluate_agent_cli(
         self,
