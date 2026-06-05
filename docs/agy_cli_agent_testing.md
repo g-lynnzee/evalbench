@@ -308,7 +308,7 @@ for a working example.
 | Area | Gemini CLI | Antigravity (agy) |
 |------|-----------|--------------------|
 | Install | `npm install -g @google/gemini-cli@<ver>` | `curl install.sh \| sh -- --dir <bin>` |
-| Version pinning | NPM specifier in `gemini_cli_version` | None exposed; binary self-updates (set `AGY_CLI_DISABLE_AUTO_UPDATE=true` to freeze it, as the Docker image does) |
+| Version pinning | NPM specifier in `gemini_cli_version` | No pinning mechanism; the binary self-updates in the background. Set `AGY_CLI_DISABLE_AUTO_UPDATE=true` to freeze the installed version (the Docker image does this). |
 | Invocation | `npm exec --yes @google/gemini-cli@<ver> -- ...` | `agy ...` (bare binary) |
 | Non-interactive flag | `--yolo` / `--prompt` | `--dangerously-skip-permissions` and `-p` (alias `--print`) |
 | Output format | `--output-format stream-json` (NDJSON on stdout) | Plain text on stdout; structured tool-call data lives in the per-conversation transcript JSONL (see below) |
