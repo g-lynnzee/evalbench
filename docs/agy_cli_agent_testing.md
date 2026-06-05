@@ -6,14 +6,11 @@ of [`gemini_cli_agent_testing.md`](gemini_cli_agent_testing.md) and only calls
 out where the two harnesses differ.
 
 > **Status:** the agy CLI surface targeted here was verified against the
-> v1.0.5 binary (the self-updating installer pulls the latest). Model
-> selection is passed via agy's `--model` flag, and the value must be the
-> exact agy UI label (see the model-selection note below and the comment in
-> `datasets/model_configs/agy_cli_model.yaml`).
+> v1.0.5 binary (the self-updating installer pulls the latest).
 
 > [!IMPORTANT]
 > **First-run auth:** agy uses an OAuth consumer flow backed by the system
-> keyring (file-backed under SSH). Before evals can run, complete `agy`
+> keyring. Before evals can run, complete `agy`
 > login interactively at least once on the host so a refreshable token
 > exists. After that, the harness can run non-interactively.
 
@@ -93,8 +90,8 @@ generator (gemini_cli, claude_code, codex_cli, agy_cli) is chosen via the
    agy --version  # sanity check
    ```
 
-   The installer writes a SHA-512-verified native binary; it self-updates in
-   the background and does not expose a pinning flag.
+   The installer writes a native binary; it self-updates in the background
+   and does not expose a pinning flag.
 
 > [!NOTE]
 > **The harness does not run this host binary.** `AgyCliGenerator`
@@ -234,24 +231,21 @@ identical baseline.
 Configured under `setup.mcp_servers` in the model config. EvalBench writes
 the block under the `mcpServers` key of a sandboxed
 `<fake_home>/.gemini/config/mcp_config.json` (a separate file from
-`settings.json`; both path and key are confirmed from the v1.0.5 binary's
-load-error string and `json:"mcpServers"` struct tag) and lets agy pick it
-up at startup.
+`settings.json`) and lets agy pick it up at startup.
 
 > [!IMPORTANT]
 > **Use `serverUrl` for the HTTP endpoint.** `serverUrl` is agy's native
-> transport field (the Windsurf/cortex lineage). `url` also works as of
-> v1.0.5 (release notes: "Added support for `url` in `mcp_config.json` to
-> configure MCP servers directly via a URL"). A Gemini-style `httpUrl` works
-> too, because EvalBench rewrites it to `serverUrl` before writing the
-> config (`_translate_mcp_config`) -- so you never depend on agy parsing
-> `httpUrl` natively. Prefer `serverUrl` for clarity. An *unrecognized* URL
+> transport field, and `url` also works as of
+> v1.0.5. A Gemini-style `httpUrl` works too, because EvalBench rewrites it
+> to `serverUrl` before writing the config (`_translate_mcp_config`) -- so
+> you never depend on agy parsing `httpUrl` natively. Prefer `serverUrl` for
+> clarity. An *unrecognized* URL
 > key is accepted silently and exposes zero tools, but the setup-time probe
 > (`_verify_mcp_runtime`, below) catches that. `authProviderType`,
 > `oauth.scopes`, and `headers` are native agy fields, so Google auth works
 > without Bearer-header injection (unlike `claude_code`).
 
-Unlike older notes, the harness **does** pre-verify attach: at setup it runs
+The harness pre-verifies attach: at setup it runs
 a short `agy -p` probe, then confirms each configured server discovered
 tools by checking that agy wrote per-tool schema files to
 `<appDataDir>/mcp/<server>/*.json` (the lazy-load schema cache that
@@ -363,15 +357,12 @@ with `content` (no `tool_calls`). When `--continue` is used the transcript
 accumulates across turns; the parser slices from the most-recent
 `USER_INPUT` step onward to report only the current turn.
 
-The parser binds each call only to the result step that immediately follows
-the planner step that emitted it (strict adjacency); the pending window resets
-at every planner step and any intervening step, so a call that never produced
-an adjacent result step is not credited with a later call's result. As a guard against forged transcript lines, a `call_mcp_tool`
-wrapper is only counted as a successful MCP execution when it is paired with
-a genuine `MCP_TOOL` result step; a wrapper with no result, or one paired
-with a non-MCP result, is marked failed. This bounds but cannot fully
-prevent crediting forged lines -- the authoritative guarantee that MCP is
-wired up is the setup-time schema-cache check (`_verify_mcp_runtime`).
+The parser binds each call to the result step that immediately follows the
+planner step that emitted it. A `call_mcp_tool` wrapper is counted as a
+successful MCP execution only when it is paired with a genuine `MCP_TOOL`
+result step; a wrapper with no result, or one paired with a non-MCP result,
+is marked failed. The authoritative guarantee that MCP is wired up is the
+setup-time schema-cache check (`_verify_mcp_runtime`).
 
 ---
 
@@ -421,8 +412,6 @@ server discovered no tools. If you hit that error:
   (used for outbound credentials to the MCP server -- agy's own auth is
   separate OAuth).
 - Verify OAuth scopes and project ID in the headers.
-- If you suspect the path or key is wrong, search the agy binary with
-  `strings <agy-binary> | grep -i mcp_config` to confirm what it reads.
 
 ### Skill Not Picked Up
 
