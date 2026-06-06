@@ -66,12 +66,7 @@ Run Config -> AgentOrchestrator -> AgentEvaluator -> AgyCliGenerator -> agy
                                               MCP servers / skills
 ```
 
-`evaluator/__init__.py` routes both the modern `agent` keyword and the
-legacy `geminicli` keyword to `AgentOrchestrator`
-(`orchestrator_type in ("geminicli", "agent")`); use `agent` for non-gemini
-CLIs. The keyword only selects the orchestrator -- the concrete CLI
-generator (gemini_cli, claude_code, codex_cli, agy_cli) is chosen via the
-`generator` field in `model_config`.
+The `orchestrator: agent` keyword in your run config selects the `AgentOrchestrator`, while the concrete CLI generator (`agy_cli`) is chosen via the `generator` field in your `model_config`.
 
 ---
 
@@ -94,9 +89,9 @@ generator (gemini_cli, claude_code, codex_cli, agy_cli) is chosen via the
    and does not expose a pinning flag.
 
 > [!NOTE]
-> **The harness does not run this host binary.** `AgyCliGenerator`
-> installs its own copy of `agy` per session into
-> `<fake_home>/.local/bin` (see `_ensure_agy_installed`) and always
+> **The harness does not run this host binary.** The testing harness
+> installs its own isolated copy of `agy` per session into
+> `<fake_home>/.local/bin` and always
 > launches that one, never the host `PATH` binary. Installing on the host
 > is only needed for the one-time interactive login (next step) that
 > seeds the OAuth token the harness mirrors into the sandbox.
@@ -198,7 +193,7 @@ reporting:
 > environment.** Set `GOOGLE_CLOUD_PROJECT` (and optionally
 > `GOOGLE_CLOUD_LOCATION`) in the `env` block as usual; the harness writes
 > them into agy's `<appDataDir>/settings.json` under `gcp.project` /
-> `gcp.location` (`_initialize_settings_file`), which is where agy actually
+> `gcp.location`, which is where agy actually
 > reads the project from. Without that block agy returns empty responses
 > and makes no tool calls even with the env var exported. Location defaults
 > to `global` when unset.
@@ -240,12 +235,10 @@ the block under the `mcpServers` key of a sandboxed
 > Google auth works without Bearer-header injection (unlike `claude_code`).
 
 The harness pre-verifies attach: at setup it runs
-a short `agy -p` probe, then confirms each configured server discovered
-tools by checking that agy wrote per-tool schema files to
-`<appDataDir>/mcp/<server>/*.json` (the lazy-load schema cache that
-`call_mcp_tool` reads). A server that attaches no tools raises a `RuntimeError`
-with the offending server name rather than silently degrading. See
-`_verify_mcp_runtime` in `agy_cli.py`.
+a short probe, then confirms each configured server discovered
+tools by checking that agy wrote the expected per-tool schema files to
+the local app data cache. A server that attaches no tools fails the evaluation
+with the offending server name rather than silently degrading.
 
 ### Skills
 
@@ -320,43 +313,18 @@ for a working example.
 | Extensions | Supported via `setup.extensions` | Not modeled; drop the block |
 | MCP config location | `mcpServers` in `settings.json` | `mcpServers` in a separate `~/.gemini/config/mcp_config.json` |
 | MCP HTTP transport field | `httpUrl` | `serverUrl` (native); `url` also accepted as of v1.0.5; a Gemini-style `httpUrl` is auto-translated to `serverUrl` by the harness |
-| MCP tool name format | `mcp_<server>_<tool>` (single underscore) | No per-tool functions -- every MCP call goes through a single native `call_mcp_tool` wrapper whose args carry `ServerName`/`ToolName`/`Arguments`; the harness unwraps it to the canonical `<server>__<tool>` (see `canonicalize_agy_tool_name` in `tool_naming.py`) |
+| MCP tool name format | `mcp_<server>_<tool>` (single underscore) | No per-tool functions -- every MCP call goes through a single native `call_mcp_tool` wrapper whose args carry `ServerName`/`ToolName`/`Arguments`; the harness unwraps it to the canonical `<server>__<tool>` |
 | Model selection | `GEMINI_API_MODEL` / `GEMINI_MODEL` env var | `--model` flag (agy >=1.0.5); value is a UI label (e.g. `"Gemini 3.1 Pro (High)"`), not an API id |
 | Auth | NPM auth token via `gcloud auth print-access-token` plus ADC | OAuth (keyring-backed); ADC not required by agy itself |
-| Token-usage stats | Reported per request | Not exposed; transcript carries no token counts (verified through agy v1.0.5). `token_consumption` is omitted from the agy example configs since it would only ever report zero |
+| Token-usage stats | Reported per request | Not exposed; transcript carries no token counts (verified through agy v1.0.5). See [Scorers](#scorers) for the `token_consumption` implication |
 
-### Tool-call extraction (transcript JSONL)
+### Tool-call extraction
 
-Since agy has no `--output-format stream-json`, the harness reads
-structured tool-call data out of the per-conversation transcript that
-agy writes to:
-
-```
-~/.gemini/antigravity-cli/brain/<uuid>/.system_generated/logs/transcript.jsonl
-```
-
-The conversation UUID for a given working directory is looked up in:
-
-```
-~/.gemini/antigravity-cli/cache/last_conversations.json
-```
-
-Each transcript line is a step with a `type` field. Tool invocations
-appear on `PLANNER_RESPONSE` steps as a `tool_calls` array; the
-immediately following MODEL step holds the result. Native tools get a
-result step typed after the tool (e.g. `VIEW_FILE`, `RUN_COMMAND`); an MCP
-call -- always the `call_mcp_tool` wrapper -- gets a dedicated `MCP_TOOL`
-result step. The final user-visible reply is the last `PLANNER_RESPONSE`
-with `content` (no `tool_calls`). When `--continue` is used the transcript
-accumulates across turns; the parser slices from the most-recent
-`USER_INPUT` step onward to report only the current turn.
-
-The parser binds each call to the result step that immediately follows the
-planner step that emitted it. A `call_mcp_tool` wrapper is counted as a
-successful MCP execution only when it is paired with a genuine `MCP_TOOL`
-result step; a wrapper with no result, or one paired with a non-MCP result,
-is marked failed. The authoritative guarantee that MCP is wired up is the
-setup-time schema-cache check (`_verify_mcp_runtime`).
+Since agy has no `--output-format stream-json`, the harness automatically
+extracts structured tool-call data by parsing agy's per-conversation transcript
+logs. It unwraps `call_mcp_tool` invocations into the canonical `<server>__<tool>`
+format, and correctly slices the transcript to report only the current turn
+even when session resuming (`--continue`) is used.
 
 ---
 
@@ -365,8 +333,12 @@ setup-time schema-cache check (`_verify_mcp_runtime`).
 Identical to Gemini CLI -- see the
 [scorers section of the Gemini guide](gemini_cli_agent_testing.md#scorers).
 The `trajectory_matcher` default of dropping native/harness-internal tools
-also applies; the canonical-name rule it uses (`<server>__<tool>`) lives in
-`evalbench/generators/models/tool_naming.py`.
+also applies.
+
+> [!NOTE]
+> **`token_consumption` is omitted from the agy example configs.** agy's
+> transcript exposes no token-usage data, so the scorer would only ever
+> report 0. Re-add it if agy starts emitting usage data.
 
 ---
 
@@ -388,8 +360,8 @@ at a directory on your `PATH`, or symlink the binary into one.
 
 ### MCP Server Doesn't Attach
 
-The harness pre-verifies attach at setup (`_verify_mcp_runtime`): it runs a
-short `agy -p` probe and fails fast with a `RuntimeError` if a configured
+The harness pre-verifies attach at setup: it runs a
+short probe and fails fast if a configured
 server discovered no tools. If you hit that error:
 
 - **Check the URL field** (see the MCP Servers callout above): a typo'd or
