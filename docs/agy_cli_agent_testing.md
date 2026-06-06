@@ -385,9 +385,12 @@ server discovered no tools. If you hit that error:
   `<fake_home>/.gemini/config/plugins/<name>/` was materialized after
   setup runs. The setup log line `agy registered plugins: [...]` reports
   what `agy plugin install` recorded.
-- If `agy plugin install` failed, check the logged `rc=` and stderr --
-  a bad target (wrong path, missing `plugin.json` manifest, unreachable
-  git URL) is the usual cause.
+- If `agy plugin install` failed, the harness logs an `agy plugin install
+  '<target>' failed` line with the install command's exit code and stderr --
+  read that line for the reason. A bad target is the usual cause: a wrong
+  path, an unreachable git URL, or a directory with no valid plugin manifest
+  (agy accepts Claude/Gemini/Codex manifest formats, e.g. `plugin.json` or
+  `gemini-extension.json`).
 - If you have an `action: link` / `enable` / `install` entry in your
   config, drop it -- those gemini-cli-style actions are not supported
   here and are logged-and-skipped. Use a string target or
