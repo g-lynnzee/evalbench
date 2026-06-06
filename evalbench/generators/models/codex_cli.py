@@ -73,7 +73,7 @@ class CodexCliGenerator(QueryGenerator):
         os.makedirs(self.codex_config_dir, exist_ok=True)
         os.makedirs(self.skills_dir, exist_ok=True)
 
-        self.env = querygenerator_config.get("env", {})
+        self.env = querygenerator_config.get("env") or {}
         self.env["HOME"] = self.fake_home
         self.env["CODEX_HOME"] = self.codex_config_dir
 

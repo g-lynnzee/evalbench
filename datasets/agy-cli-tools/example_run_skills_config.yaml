@@ -1,0 +1,36 @@
+############################################################
+### Dataset / Eval Items
+############################################################
+dataset_config: datasets/agy-cli-tools/agy-cli.evalset.json
+dataset_format: agent-format
+
+# Orchestrator Configuration
+orchestrator: agent
+model_config: datasets/model_configs/agy_cli_skills_model.yaml
+simulated_user_model_config: datasets/model_configs/gemini_2.5_pro_model.yaml
+
+############################################################
+### Scorer Related Configs
+############################################################
+scorers:
+  # Note: trajectory_matcher and parameter_analysis are omitted here because
+  # skill-driven workflows use a different execution surface. The agent activates
+  # high-level skills rather than directly invoking granular tools.
+  # To evaluate skill execution paths, use the `skills_trajectory` scorer instead.
+
+  goal_completion:
+    model_config: datasets/model_configs/gemini_2.5_pro_model.yaml
+  behavioral_metrics:
+    model_config: datasets/model_configs/gemini_2.5_pro_model.yaml
+  turn_count: {}
+  end_to_end_latency: {}
+  tool_call_latency: {}
+  # token_consumption omitted: agy's transcript exposes no token usage, so the
+  # scorer would only ever report 0. Re-add if agy starts emitting usage data.
+
+############################################################
+### Reporting Related Configs
+############################################################
+reporting:
+  csv:
+    output_directory: 'results'

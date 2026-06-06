@@ -1,0 +1,40 @@
+############################################################
+### Dataset / Eval Items
+############################################################
+dataset_config: datasets/agy-cli-tools/agy-cli-fake.evalset.json
+dataset_format: agent-format
+
+# Orchestrator Configuration
+orchestrator: agent
+model_config: datasets/model_configs/agy_cli_fake_model.yaml
+simulated_user_model_config: datasets/model_configs/gemini_2.5_pro_model.yaml
+
+############################################################
+### Scorer Related Configs
+############################################################
+scorers:
+  # By default trajectory_matcher drops native/harness-internal tools
+  # (run_shell_command, write_file, update_topic, ...) from both expected
+  # and actual trajectories before scoring. Uncomment the block below to
+  # keep them and score native-tool usage too.
+  trajectory_matcher: {}
+  # trajectory_matcher:
+  #   filter_native_tools: false
+  goal_completion:
+    model_config: datasets/model_configs/gemini_2.5_pro_model.yaml
+  behavioral_metrics:
+    model_config: datasets/model_configs/gemini_2.5_pro_model.yaml
+  parameter_analysis:
+    model_config: datasets/model_configs/gemini_2.5_pro_model.yaml
+  turn_count: {}
+  end_to_end_latency: {}
+  tool_call_latency: {}
+  # token_consumption omitted: agy's transcript exposes no token usage, so the
+  # scorer would only ever report 0. Re-add if agy starts emitting usage data.
+
+############################################################
+### Reporting Related Configs
+############################################################
+reporting:
+  csv:
+    output_directory: 'results'
