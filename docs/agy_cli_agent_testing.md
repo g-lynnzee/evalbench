@@ -5,9 +5,6 @@ agent workflows using **MCP Servers** and **Skills**. It mirrors the structure
 of [`gemini_cli_agent_testing.md`](gemini_cli_agent_testing.md) and only calls
 out where the two harnesses differ.
 
-> **Status:** the agy CLI surface targeted here was verified against the
-> v1.0.5 binary (the self-updating installer pulls the latest).
-
 > [!IMPORTANT]
 > **First-run auth:** agy uses an OAuth consumer flow backed by the system
 > keyring. Before evals can run, complete `agy`
