@@ -38,10 +38,7 @@ class AgyCliGenerator(AgentCliGenerator):
     ``agy -p <prompt> --dangerously-skip-permissions [--model <label>]
     [--continue]``. The on-disk layout lives under
     ``~/.gemini/antigravity-cli/`` (the binary calls this ``appDataDir``).
-    Skills are delivered via plugins: ``agy plugin install <target>`` reads a
-    plugin manifest (Claude/Gemini/Codex formats), materializes any bundled
-    skills under ``<HOME>/.gemini/config/plugins/<name>/`` and records the
-    install in ``<HOME>/.gemini/config/import_manifest.json``. There is no
+    Skills are delivered via plugins (see _setup_skills). There is no
     ``--output-format`` flag and no stdout stream protocol; structured
     tool-call data is read out of the per-conversation JSONL transcript at
     ``<appDataDir>/brain/<uuid>/.system_generated/logs/transcript.jsonl``.
@@ -54,21 +51,15 @@ class AgyCliGenerator(AgentCliGenerator):
         self.name = "agy_cli"
 
         # Parity with gemini_cli_version/codex_cli_version/claude_code_version:
-        # the evaluator reads this as agent_version. agy has no version pinning
-        # (the binary self-updates), so this is fixed to the bare command name
-        # as a stable label and is intentionally not config-overridable. The
-        # executable actually launched is the per-session install at
-        # self.agy_bin (see _ensure_agy_installed), not this value.
+        # the evaluator reads this as agent_version. Fixed to the bare command
+        # name (see AGY_CLI) and intentionally not config-overridable.
         self.agy_cli_version = AGY_CLI
 
         self.env = querygenerator_config.get("env") or {}
 
-        # Top-level `model` key. Passed per-invocation via agy's `--model`
-        # flag (agy >=1.0.5) -- see _base_agy_command. The value must be the
-        # exact agy UI label (e.g. "Gemini 3.1 Pro (High)", as listed by
-        # `agy models`), not an API id; an unrecognized value is silently
-        # ignored and agy falls back to its default model. None -> the flag is
-        # omitted and agy uses its default.
+        # Top-level `model` key, applied per-invocation via agy's `--model`
+        # flag (None -> flag omitted). See _base_agy_command for the value
+        # format and resolution semantics.
         self.model = querygenerator_config.get("model")
 
         # Order is load-bearing: paths/dirs must exist before the binary
@@ -514,7 +505,8 @@ class AgyCliGenerator(AgentCliGenerator):
                 f"agy MCP server(s) {failed} attached no tools "
                 f"(no schemas under {mcp_schema_root}/<server>/). The "
                 "server likely failed to load -- check the URL field "
-                "(agy uses 'serverUrl', not 'httpUrl'), auth, and "
+                "(use 'serverUrl' or 'url'; a gemini-style 'httpUrl' is "
+                "auto-translated), auth, and "
                 "reachability. agy degrades silently to shell-outs when "
                 "MCP tools are missing."
             )
@@ -754,9 +746,11 @@ class AgyCliGenerator(AgentCliGenerator):
     def _translate_mcp_config(config: dict) -> dict:
         """Normalizes a cross-harness MCP server config into agy's schema.
 
-        Maps the common gemini-style ``httpUrl`` alias to ``serverUrl``, which
-        agy reliably accepts. Other fields like ``authProviderType``,
-        ``oauth.scopes``, and stdio fields pass through natively.
+        Maps the common gemini-style ``httpUrl`` alias to ``serverUrl``, agy's
+        native field. ``serverUrl`` and ``url`` (v1.0.5+) are accepted by agy
+        directly and need no translation. Other fields like
+        ``authProviderType``, ``oauth.scopes``, and stdio fields pass through
+        natively.
         """
         if "httpUrl" in config and "serverUrl" not in config:
             config["serverUrl"] = config.pop("httpUrl")
@@ -949,10 +943,7 @@ class AgyCliGenerator(AgentCliGenerator):
         per-conversation JSONL transcript that agy writes under
         ``<appDataDir>/brain/<uuid>/.system_generated/logs/``.
 
-        Only the most-recent turn is reported -- the transcript
-        accumulates across turns when ``--continue`` is used, so the
-        slice from the last ``USER_INPUT`` step onward is the new
-        material from this invocation.
+        Only the most-recent turn is reported (see _slice_current_turn).
         """
         # Transcripts don't carry token counts; downstream
         # token_consumption scorers will see zeros.
