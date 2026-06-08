@@ -1,4 +1,4 @@
-from .generator import QueryGenerator
+from .agent_cli import AgentCliGenerator
 from .tool_naming import canonicalize_agy_tool_name, parse_agy_mcp_tool_call
 import collections
 import subprocess
@@ -31,7 +31,7 @@ class CLICommand:
         self.cwd = cwd
 
 
-class AgyCliGenerator(QueryGenerator):
+class AgyCliGenerator(AgentCliGenerator):
     """Generator that queries via the Antigravity CLI (``agy``).
 
     Surface targeted here is what the v1.0.5 binary actually exposes:
@@ -1172,6 +1172,10 @@ class AgyCliGenerator(QueryGenerator):
             return 0
         return int((t1 - t0).total_seconds() * 1000)
 
+    @property
+    def version(self) -> str:
+        return self.agy_cli_version
+
     def parse_response(self, stdout: str) -> dict:
         if not stdout:
             return {}
@@ -1225,7 +1229,7 @@ class AgyCliGenerator(QueryGenerator):
 
     def create_command(
         self, cli: str, prompt: str, env: dict = None, resume: bool = False,
-        cwd: str = None,
+        session_id: str = None, cwd: str = None,
     ) -> CLICommand:
         # The executable is always this session's sandbox binary
         # (self.agy_bin); the ``cli`` argument -- the agent_version label "agy"
