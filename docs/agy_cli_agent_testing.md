@@ -155,7 +155,7 @@ non-gemini CLIs.
 | `model_config` | Yes | Path to the agy CLI model config YAML |
 | `simulated_user_model_config` | Yes | Path to the model config for the simulated user LLM |
 | `scorers` | Yes | Dictionary of scorer configurations |
-| `reporting` | Optional | CSV and/or BigQuery output options |
+| `reporting` | Yes | CSV and/or BigQuery output options |
 
 **Example** ([example_run_config.yaml](/datasets/agy-cli-tools/example_run_config.yaml)):
 
@@ -189,14 +189,7 @@ reporting:
 | `setup` | Optional | Tool setup block containing `mcp_servers`, `skills`, or `fake_mcp_servers` |
 
 > [!IMPORTANT]
-> **agy reads its Vertex project from `settings.json`, not the
-> environment.** Set `GOOGLE_CLOUD_PROJECT` (and optionally
-> `GOOGLE_CLOUD_LOCATION`) in the `env` block as usual; the harness writes
-> them into agy's `<appDataDir>/settings.json` under `gcp.project` /
-> `gcp.location`, which is where agy actually
-> reads the project from. Without that block agy returns empty responses
-> and makes no tool calls even with the env var exported. Location defaults
-> to `global` when unset.
+> **Explicit Project Configuration Required:** agy does not read GCP project details from the host environment. You **must** explicitly set `GOOGLE_CLOUD_PROJECT` and `GOOGLE_CLOUD_LOCATION` in the `env` block of your model config. If omitted, agy will return empty responses and fail to make tool calls, even if those variables are exported in your shell.
 
 > [!NOTE]
 > **Model selection uses the `--model` flag; use a UI label.** The harness
