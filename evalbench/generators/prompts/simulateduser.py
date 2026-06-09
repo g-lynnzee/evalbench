@@ -41,7 +41,8 @@ class SimulatedUserPromptGenerator(PromptGenerator):
                 parsed = json.loads(agent_content)
                 if isinstance(parsed, dict) and "response" in parsed:
                     agent_content = parsed["response"]
-            except Exception:
+            except json.JSONDecodeError:
+                # agent_content is plain text, not JSON; keep original value
                 pass
             history_str += f"User: {turn['user']}\nAgent: {agent_content}\n"
 
@@ -49,7 +50,8 @@ class SimulatedUserPromptGenerator(PromptGenerator):
             parsed = json.loads(last_reply)
             if isinstance(parsed, dict) and "response" in parsed:
                 last_reply = parsed["response"]
-        except Exception:
+        except json.JSONDecodeError:
+            # last_reply is plain text, not JSON; keep original value
             pass
 
         prompt = self.prompt_template.replace(

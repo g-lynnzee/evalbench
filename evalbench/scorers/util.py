@@ -109,7 +109,8 @@ def format_conversation_history(
                                 tool_calls_text += f"Agent invoked {tname}({params_str}) -> {status_str}:\n{resp_str}\n"
                             else:
                                 tool_calls_text += f"Agent invoked {tname}({params_str}) -> {status_str}\n"
-        except Exception:
+        except (json.JSONDecodeError, TypeError):
+            # agent_raw is plain text, not JSON; keep original value
             pass
 
         if tool_calls_text:
@@ -117,4 +118,3 @@ def format_conversation_history(
         transcript += f"Agent: {agent_text}\n"
 
     return transcript
-

@@ -51,7 +51,8 @@ class GoalCompletionRate(comparator.Comparator):
         if isinstance(history_list, str):
             try:
                 history_list = json.loads(history_list)
-            except Exception:
+            except json.JSONDecodeError:
+                # history_list is plain text, not JSON; keep original value
                 pass
 
         if isinstance(history_list, list):

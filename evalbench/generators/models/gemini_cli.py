@@ -878,11 +878,10 @@ class GeminiCliGenerator(AgentCliGenerator):
     def _parse_stream_json(self, stream_output: str) -> str:
         import dateutil.parser
 
+        from collections import OrderedDict
+
         final_obj = {"session_id": "", "response": "", "stats": {}, "tool_calls": []}
-        tool_uses = {}
-        tool_results = {}
-        tool_calls = []
-        calls_by_id = {}
+        tool_calls_dict = OrderedDict()
         model_name = "gemini-2.5-flash"
 
         for line in stream_output.split("\n"):
@@ -900,32 +899,28 @@ class GeminiCliGenerator(AgentCliGenerator):
                 elif t == "tool_use":
                     tool_id = event.get("tool_id")
                     if tool_id:
-                        tool_uses[tool_id] = event
                         tname = canonicalize_gemini_tool_name(
                             event.get("tool_name", "unknown")
                         )
-                        call_dict = {
+                        tool_calls_dict[tool_id] = {
                             "tool_id": tool_id,
                             "tool_name": tname,
                             "parameters": event.get("parameters", {}),
                             "status": None,
                             "response": None,
+                            "timestamp": event.get("timestamp"),
                         }
-                        tool_calls.append(call_dict)
-                        calls_by_id[tool_id] = call_dict
                 elif t == "tool_result":
                     tool_id = event.get("tool_id")
-                    if tool_id:
-                        tool_results[tool_id] = event
-                        call_dict = calls_by_id.get(tool_id)
-                        if call_dict:
-                            call_dict["status"] = event.get("status")
-                            res = event.get("result")
-                            if res is None:
-                                res = event.get("content")
-                            if res is None:
-                                res = event.get("output")
-                            call_dict["response"] = res
+                    if tool_id and tool_id in tool_calls_dict:
+                        tool_calls_dict[tool_id]["status"] = event.get("status")
+                        tool_calls_dict[tool_id]["result_timestamp"] = event.get("timestamp")
+                        res = event.get("result")
+                        if res is None:
+                            res = event.get("content")
+                        if res is None:
+                            res = event.get("output")
+                        tool_calls_dict[tool_id]["response"] = res
                 elif t == "result":
                     s = event.get("stats", {})
                     total_duration = s.get("duration_ms", 0)
@@ -967,28 +962,28 @@ class GeminiCliGenerator(AgentCliGenerator):
                     final_obj["stats"]["models"] = models
 
                     tools_stats = {
-                        "totalCalls": len(tool_uses),
+                        "totalCalls": len(tool_calls_dict),
                         "totalSuccess": sum(
                             1
-                            for tr in tool_results.values()
-                            if tr.get("status") == "success"
+                            for tc in tool_calls_dict.values()
+                            if tc.get("status") == "success"
                         ),
                         "totalFail": sum(
                             1
-                            for tr in tool_results.values()
-                            if tr.get("status") != "success"
+                            for tc in tool_calls_dict.values()
+                            if tc.get("status") != "success"
                         ),
                         "totalDurationMs": 0,
                         "decisions": {
-                            "accept": len(tool_uses),
+                            "accept": len(tool_calls_dict),
                             "reject": 0,
                             "modify": 0,
-                            "auto_accept": len(tool_uses),
+                            "auto_accept": len(tool_calls_dict),
                         },
                         "byName": {},
                     }
 
-                    for tid, tu in tool_uses.items():
+                    for tc in tool_calls_dict.values():
                         # Gemini CLI reports MCP tools as
                         # ``mcp_<server>_<tool>`` (single-underscore
                         # separators); native tools use their bare names.
@@ -996,9 +991,7 @@ class GeminiCliGenerator(AgentCliGenerator):
                         # ``<server>__<tool>`` form so the trajectory
                         # matcher can compare across harnesses without
                         # per-generator logic.
-                        tname = canonicalize_gemini_tool_name(
-                            tu.get("tool_name", "unknown")
-                        )
+                        tname = tc.get("tool_name", "unknown")
                         if tname not in tools_stats["byName"]:
                             tools_stats["byName"][tname] = {
                                 "count": 0,
@@ -1016,27 +1009,27 @@ class GeminiCliGenerator(AgentCliGenerator):
 
                         tstat = tools_stats["byName"][tname]
                         tstat["count"] += 1
-                        tstat["parameters"].append(tu.get("parameters", {}))
+                        tstat["parameters"].append(tc.get("parameters", {}))
                         tstat["decisions"]["accept"] += 1
                         tstat["decisions"]["auto_accept"] += 1
 
-                        tr = tool_results.get(tid)
                         duration = 0
-                        if tr:
-                            if tr.get("status") == "success":
+                        status = tc.get("status")
+                        if status is not None:
+                            if status == "success":
                                 tstat["success"] += 1
                             else:
                                 tstat["fail"] += 1
 
                             try:
-                                t1 = dateutil.parser.isoparse(tu["timestamp"])
-                                t2 = dateutil.parser.isoparse(tr["timestamp"])
+                                t1 = dateutil.parser.isoparse(tc["timestamp"])
+                                t2 = dateutil.parser.isoparse(tc["result_timestamp"])
                                 duration = int((t2 - t1).total_seconds() * 1000)
                             except Exception as e:
                                 logging.debug(
                                     "Failed to parse tool timestamps for duration calculation: "
-                                    f"tool_use_ts={tu.get('timestamp')!r}, "
-                                    f"tool_result_ts={tr.get('timestamp')!r}, error={e}"
+                                    f"tool_use_ts={tc.get('timestamp')!r}, "
+                                    f"tool_result_ts={tc.get('result_timestamp')!r}, error={e}"
                                 )
 
                         tstat["durationMs"] += duration
@@ -1046,7 +1039,7 @@ class GeminiCliGenerator(AgentCliGenerator):
             except Exception as e:
                 logging.debug(f"Failed to parse stream JSON line: {e}")
 
-        final_obj["tool_calls"] = tool_calls
+        final_obj["tool_calls"] = list(tool_calls_dict.values())
         return json.dumps(final_obj, indent=2)
 
     @property
