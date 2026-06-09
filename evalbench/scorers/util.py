@@ -61,3 +61,60 @@ def make_hashable(value):
     elif isinstance(value, dict):
         return frozenset((k, make_hashable(v)) for k, v in value.items())
     return value
+
+
+def format_conversation_history(
+    history: list[dict[str, str]], include_tool_calls: bool = False
+) -> str:
+    import json
+
+    transcript = ""
+    for turn in history:
+        user_msg = turn.get("user", "")
+        agent_raw = turn.get("agent", "")
+
+        transcript += f"User: {user_msg}\n"
+
+        agent_text = agent_raw
+        tool_calls_text = ""
+
+        try:
+            parsed = json.loads(agent_raw)
+            if isinstance(parsed, dict):
+                agent_text = parsed.get("response", agent_raw)
+                if include_tool_calls and "tool_calls" in parsed:
+                    calls = parsed["tool_calls"]
+                    if isinstance(calls, list):
+                        for call in calls:
+                            tname = call.get("tool_name", "unknown")
+                            params = call.get("parameters", {})
+                            status = call.get("status")
+                            resp = call.get("response")
+
+                            if isinstance(params, dict):
+                                params_str = ", ".join(f"{k}={json.dumps(v)}" for k, v in params.items())
+                            else:
+                                params_str = str(params)
+
+                            status_str = str(status) if status is not None else "Unknown"
+                            status_str = status_str[0].upper() + status_str[1:] if status_str else "Unknown"
+
+                            if resp is not None:
+                                if isinstance(resp, (dict, list)):
+                                    resp_str = json.dumps(resp, indent=2)
+                                else:
+                                    resp_str = str(resp)
+                                resp_lines = resp_str.split("\n")
+                                resp_str = "\n".join("  " + line for line in resp_lines)
+                                tool_calls_text += f"Agent invoked {tname}({params_str}) -> {status_str}:\n{resp_str}\n"
+                            else:
+                                tool_calls_text += f"Agent invoked {tname}({params_str}) -> {status_str}\n"
+        except Exception:
+            pass
+
+        if tool_calls_text:
+            transcript += tool_calls_text
+        transcript += f"Agent: {agent_text}\n"
+
+    return transcript
+

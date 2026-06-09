@@ -878,9 +878,11 @@ class GeminiCliGenerator(AgentCliGenerator):
     def _parse_stream_json(self, stream_output: str) -> str:
         import dateutil.parser
 
-        final_obj = {"session_id": "", "response": "", "stats": {}}
+        final_obj = {"session_id": "", "response": "", "stats": {}, "tool_calls": []}
         tool_uses = {}
         tool_results = {}
+        tool_calls = []
+        calls_by_id = {}
         model_name = "gemini-2.5-flash"
 
         for line in stream_output.split("\n"):
@@ -899,10 +901,31 @@ class GeminiCliGenerator(AgentCliGenerator):
                     tool_id = event.get("tool_id")
                     if tool_id:
                         tool_uses[tool_id] = event
+                        tname = canonicalize_gemini_tool_name(
+                            event.get("tool_name", "unknown")
+                        )
+                        call_dict = {
+                            "tool_id": tool_id,
+                            "tool_name": tname,
+                            "parameters": event.get("parameters", {}),
+                            "status": None,
+                            "response": None,
+                        }
+                        tool_calls.append(call_dict)
+                        calls_by_id[tool_id] = call_dict
                 elif t == "tool_result":
                     tool_id = event.get("tool_id")
                     if tool_id:
                         tool_results[tool_id] = event
+                        call_dict = calls_by_id.get(tool_id)
+                        if call_dict:
+                            call_dict["status"] = event.get("status")
+                            res = event.get("result")
+                            if res is None:
+                                res = event.get("content")
+                            if res is None:
+                                res = event.get("output")
+                            call_dict["response"] = res
                 elif t == "result":
                     s = event.get("stats", {})
                     total_duration = s.get("duration_ms", 0)
@@ -1023,6 +1046,7 @@ class GeminiCliGenerator(AgentCliGenerator):
             except Exception as e:
                 logging.debug(f"Failed to parse stream JSON line: {e}")
 
+        final_obj["tool_calls"] = tool_calls
         return json.dumps(final_obj, indent=2)
 
     @property

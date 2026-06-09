@@ -781,9 +781,11 @@ class CodexCliGenerator(AgentCliGenerator):
         """
         tool_durations = tool_durations or {}
 
-        final_obj = {"session_id": "", "response": "", "stats": {}}
+        final_obj = {"session_id": "", "response": "", "stats": {}, "tool_calls": []}
         tool_uses: dict[str, dict] = {}
         tool_results: dict[str, dict] = {}
+        tool_calls = []
+        calls_by_id = {}
         usage: dict = {}
         model_name = self.model or "unknown"
 
@@ -853,54 +855,130 @@ class CodexCliGenerator(AgentCliGenerator):
                 # can compare across harnesses without per-generator logic.
                 server = payload.get("server", "")
                 tool = payload.get("tool", "unknown")
+                tname = canonical_tool_name(server, tool)
+                params = self._coerce_json(payload.get("arguments", {}))
                 tool_uses[item_id] = {
-                    "tool_name": canonical_tool_name(server, tool),
+                    "tool_name": tname,
                     "server": server,
-                    "parameters": self._coerce_json(payload.get("arguments", {})),
+                    "parameters": params,
                 }
+                if item_id:
+                    if item_id not in calls_by_id:
+                        call_dict = {
+                            "tool_id": item_id,
+                            "tool_name": tname,
+                            "parameters": params,
+                            "status": None,
+                            "response": None,
+                        }
+                        tool_calls.append(call_dict)
+                        calls_by_id[item_id] = call_dict
+                    else:
+                        calls_by_id[item_id]["parameters"] = params
+
                 if event_type == self._EV_ITEM_COMPLETED:
                     status = payload.get("status", "")
                     is_error = bool(payload.get("error")) or status not in (
-                        "", "completed", "success", "ok",
+                         "", "completed", "success", "ok",
                     )
+                    status_str = "error" if is_error else "success"
                     tool_results[item_id] = {
-                        "status": "error" if is_error else "success",
+                        "status": status_str,
                         "content": payload.get("result", ""),
                     }
+                    if item_id and item_id in calls_by_id:
+                        calls_by_id[item_id]["status"] = status_str
+                        calls_by_id[item_id]["response"] = payload.get("result", "")
 
             elif kind == "command_execution":
+                cmd_str = payload.get("command", "")
                 tool_uses[item_id] = {
                     "tool_name": "shell",
-                    "parameters": {"command": payload.get("command", "")},
+                    "parameters": {"command": cmd_str},
                 }
+                if item_id:
+                    if item_id not in calls_by_id:
+                        call_dict = {
+                            "tool_id": item_id,
+                            "tool_name": "shell",
+                            "parameters": {"command": cmd_str},
+                            "status": None,
+                            "response": None,
+                        }
+                        tool_calls.append(call_dict)
+                        calls_by_id[item_id] = call_dict
+                    else:
+                        calls_by_id[item_id]["parameters"] = {"command": cmd_str}
+
                 if event_type == self._EV_ITEM_COMPLETED:
                     exit_code = payload.get("exit_code")
                     is_error = bool(exit_code) and exit_code != 0
+                    status_str = "error" if is_error else "success"
                     tool_results[item_id] = {
-                        "status": "error" if is_error else "success",
+                        "status": status_str,
                         "content": payload.get("aggregated_output", ""),
                     }
+                    if item_id and item_id in calls_by_id:
+                        calls_by_id[item_id]["status"] = status_str
+                        calls_by_id[item_id]["response"] = payload.get("aggregated_output", "")
 
             elif kind == "web_search":
+                query_str = payload.get("query", "")
                 tool_uses[item_id] = {
                     "tool_name": "web_search",
-                    "parameters": {"query": payload.get("query", "")},
+                    "parameters": {"query": query_str},
                 }
+                if item_id:
+                    if item_id not in calls_by_id:
+                        call_dict = {
+                            "tool_id": item_id,
+                            "tool_name": "web_search",
+                            "parameters": {"query": query_str},
+                            "status": None,
+                            "response": None,
+                        }
+                        tool_calls.append(call_dict)
+                        calls_by_id[item_id] = call_dict
+                    else:
+                        calls_by_id[item_id]["parameters"] = {"query": query_str}
+
                 if event_type == self._EV_ITEM_COMPLETED:
                     tool_results[item_id] = {"status": "success", "content": ""}
+                    if item_id and item_id in calls_by_id:
+                        calls_by_id[item_id]["status"] = "success"
+                        calls_by_id[item_id]["response"] = ""
 
             elif kind == "file_change":
+                changes_list = payload.get("changes", [])
                 tool_uses[item_id] = {
                     "tool_name": "file_change",
-                    "parameters": {"changes": payload.get("changes", [])},
+                    "parameters": {"changes": changes_list},
                 }
+                if item_id:
+                    if item_id not in calls_by_id:
+                        call_dict = {
+                            "tool_id": item_id,
+                            "tool_name": "file_change",
+                            "parameters": {"changes": changes_list},
+                            "status": None,
+                            "response": None,
+                        }
+                        tool_calls.append(call_dict)
+                        calls_by_id[item_id] = call_dict
+                    else:
+                        calls_by_id[item_id]["parameters"] = {"changes": changes_list}
+
                 if event_type == self._EV_ITEM_COMPLETED:
                     status = payload.get("status", "")
                     is_error = status not in ("", "completed", "success", "ok")
+                    status_str = "error" if is_error else "success"
                     tool_results[item_id] = {
-                        "status": "error" if is_error else "success",
+                        "status": status_str,
                         "content": "",
                     }
+                    if item_id and item_id in calls_by_id:
+                        calls_by_id[item_id]["status"] = status_str
+                        calls_by_id[item_id]["response"] = ""
 
         input_tokens = int(usage.get("input_tokens", 0) or 0)
         output_tokens = int(usage.get("output_tokens", 0) or 0)
@@ -994,6 +1072,7 @@ class CodexCliGenerator(AgentCliGenerator):
 
         final_obj["stats"]["tools"] = tools_stats
 
+        final_obj["tool_calls"] = tool_calls
         return json.dumps(final_obj, indent=2)
 
     @staticmethod

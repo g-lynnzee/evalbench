@@ -1,4 +1,5 @@
 from .generator import PromptGenerator
+import json
 
 SIMULATED_USER_PROMPT = """You are a simulated user interacting with Gemini CLI agent.
 Your objective is to follow the conversation plan provided below and engage with the agent naturally to achieve the goals.
@@ -35,7 +36,21 @@ class SimulatedUserPromptGenerator(PromptGenerator):
         # Format history
         history_str = ""
         for turn in history_list:
-            history_str += f"User: {turn['user']}\nAgent: {turn['agent']}\n"
+            agent_content = turn['agent']
+            try:
+                parsed = json.loads(agent_content)
+                if isinstance(parsed, dict) and "response" in parsed:
+                    agent_content = parsed["response"]
+            except Exception:
+                pass
+            history_str += f"User: {turn['user']}\nAgent: {agent_content}\n"
+
+        try:
+            parsed = json.loads(last_reply)
+            if isinstance(parsed, dict) and "response" in parsed:
+                last_reply = parsed["response"]
+        except Exception:
+            pass
 
         prompt = self.prompt_template.replace(
             "[[conversation_plan]]", str(plan))

@@ -17,6 +17,7 @@ class GoalCompletionRate(comparator.Comparator):
         if not self.model_config:
             raise ValueError("model_config is required for GoalCompletionRate")
         self.model = get_generator(global_models, self.model_config)
+        self.include_tool_calls = config.get("include_tool_calls", False)
 
     def compare(
         self,
@@ -44,13 +45,28 @@ class GoalCompletionRate(comparator.Comparator):
         except json.JSONDecodeError:
             return 0.0, "Invalid JSON in eval result context."
 
-        conversation_history = context.get("conversation_history", "[]")
+        from .util import format_conversation_history
+
+        history_list = context.get("conversation_history", [])
+        if isinstance(history_list, str):
+            try:
+                history_list = json.loads(history_list)
+            except Exception:
+                pass
+
+        if isinstance(history_list, list):
+            formatted_history = format_conversation_history(
+                history_list, include_tool_calls=self.include_tool_calls
+            )
+        else:
+            formatted_history = str(history_list)
+
         scenario = context.get("scenario", {})
         conversation_plan = scenario.get("conversation_plan", "")
 
         prompt = GOAL_COMPLETION_PROMPT.format(
             conversation_plan=conversation_plan,
-            conversation_history=conversation_history
+            conversation_history=formatted_history
         )
 
         try:
