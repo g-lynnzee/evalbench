@@ -30,6 +30,7 @@ class SpannerDB(DB):
         self.config = db_config
         self.dialect = db_config.get("dialect", "spanner_gsql")
         self.db_type = "spanner"
+        self.query_timeout = db_config.get("query_timeout", 60)
         self.engine = None
 
         self.emulator_manager = None
@@ -154,10 +155,10 @@ class SpannerDB(DB):
                     try:
                         if is_dml:
                             rows_affected = transaction.execute_update(
-                                query, timeout=15)
+                                query, timeout=self.query_timeout)
                             result = [{"rows_affected": rows_affected}]
                         else:
-                            res = transaction.execute_sql(query, timeout=15)
+                            res = transaction.execute_sql(query, timeout=self.query_timeout)
                             rows = list(res)
                             fields = [
                                 f.name for f in res.fields] if res.fields else []
@@ -165,7 +166,7 @@ class SpannerDB(DB):
 
                         if eval_query:
                             res_eval = transaction.execute_sql(
-                                eval_query, timeout=15)
+                                eval_query, timeout=self.query_timeout)
                             rows_eval = list(res_eval)
                             fields_eval = [
                                 f.name for f in res_eval.fields] if res_eval.fields else []
@@ -185,7 +186,7 @@ class SpannerDB(DB):
             else:
                 try:
                     with self.database.snapshot() as snapshot:
-                        res = snapshot.execute_sql(query, timeout=15)
+                        res = snapshot.execute_sql(query, timeout=self.query_timeout)
                         rows = list(res)
                         fields = [
                             f.name for f in res.fields] if res.fields else []
@@ -193,7 +194,7 @@ class SpannerDB(DB):
 
                         if eval_query:
                             res_eval = snapshot.execute_sql(
-                                eval_query, timeout=15)
+                                eval_query, timeout=self.query_timeout)
                             rows_eval = list(res_eval)
                             fields_eval = [
                                 f.name for f in res_eval.fields] if res_eval.fields else []
@@ -222,7 +223,7 @@ class SpannerDB(DB):
             type_col = "spanner_type" if self.expected_dialect_str == "GOOGLESQL" else "data_type"
             query = f"SELECT table_name, column_name, {type_col} FROM information_schema.columns WHERE table_schema = '{schema_name}' ORDER BY table_name, ordinal_position"
             with self.database.snapshot() as snapshot:
-                res = snapshot.execute_sql(query, timeout=15)
+                res = snapshot.execute_sql(query, timeout=self.query_timeout)
                 for row in res:
                     t_name, c_name, d_type = row[0], row[1], row[2]
                     if t_name not in db_metadata:
@@ -326,9 +327,9 @@ class SpannerDB(DB):
     def _drop_views(self):
         with self.database.snapshot() as snapshot:
             if self.expected_dialect_str == "POSTGRESQL":
-                res = snapshot.execute_sql("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'VIEW'", timeout=15)
+                res = snapshot.execute_sql("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'VIEW'", timeout=self.query_timeout)
             else:
-                res = snapshot.execute_sql("SELECT table_name FROM information_schema.tables WHERE (table_schema = '' OR table_schema IS NULL) AND table_type = 'VIEW'", timeout=15)
+                res = snapshot.execute_sql("SELECT table_name FROM information_schema.tables WHERE (table_schema = '' OR table_schema IS NULL) AND table_type = 'VIEW'", timeout=self.query_timeout)
             view_names = [row[0] for row in res]
 
         if view_names:
@@ -346,7 +347,7 @@ class SpannerDB(DB):
     def _drop_indices(self):
         with self.database.snapshot() as snapshot:
             query = "SELECT index_name FROM information_schema.indexes WHERE (table_schema = '' OR table_schema IS NULL OR table_schema = 'public') AND index_name != 'PRIMARY_KEY'"
-            res = snapshot.execute_sql(query, timeout=15)
+            res = snapshot.execute_sql(query, timeout=self.query_timeout)
             index_names = [row[0] for row in res]
 
         if index_names:
@@ -367,7 +368,7 @@ class SpannerDB(DB):
                 query = "SELECT table_name, constraint_name FROM information_schema.table_constraints WHERE table_schema = 'public' AND constraint_type = 'FOREIGN KEY'"
             else:
                 query = "SELECT table_name, constraint_name FROM information_schema.table_constraints WHERE (table_schema = '' OR table_schema IS NULL) AND constraint_type = 'FOREIGN KEY'"
-            res = snapshot.execute_sql(query, timeout=15)
+            res = snapshot.execute_sql(query, timeout=self.query_timeout)
             fk_info = [(row[0], row[1]) for row in res]
 
         if fk_info:
@@ -385,9 +386,9 @@ class SpannerDB(DB):
     def _drop_tables(self):
         with self.database.snapshot() as snapshot:
             if self.expected_dialect_str == "POSTGRESQL":
-                res = snapshot.execute_sql("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE'", timeout=15)
+                res = snapshot.execute_sql("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE'", timeout=self.query_timeout)
             else:
-                res = snapshot.execute_sql("SELECT table_name FROM information_schema.tables WHERE (table_schema = '' OR table_schema IS NULL) AND table_type = 'BASE TABLE'", timeout=15)
+                res = snapshot.execute_sql("SELECT table_name FROM information_schema.tables WHERE (table_schema = '' OR table_schema IS NULL) AND table_type = 'BASE TABLE'", timeout=self.query_timeout)
             table_names = [row[0] for row in res]
 
         if not table_names:
@@ -434,7 +435,7 @@ class SpannerDB(DB):
             with self.database.snapshot() as snapshot:
                 type_col = "spanner_type" if self.expected_dialect_str == "GOOGLESQL" else "data_type"
                 query = f"SELECT table_name, column_name, {type_col} FROM information_schema.columns WHERE table_schema = '{schema_name}' ORDER BY table_name, ordinal_position"
-                res = snapshot.execute_sql(query, timeout=15)
+                res = snapshot.execute_sql(query, timeout=self.query_timeout)
                 for row in res:
                     t_name, c_name, d_type = row[0], row[1], row[2]
                     if t_name not in table_info:
