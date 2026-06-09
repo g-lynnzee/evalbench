@@ -30,7 +30,7 @@ class SpannerDB(DB):
         self.config = db_config
         self.dialect = db_config.get("dialect", "spanner_gsql")
         self.db_type = "spanner"
-        self.query_timeout = db_config.get("query_timeout", 60)
+        self.query_timeout = db_config.get("query_timeout", 120)
         self.engine = None
 
         self.emulator_manager = None
@@ -38,7 +38,8 @@ class SpannerDB(DB):
             "use_managed_emulator", False)
 
         raw_dialect = self.dialect.lower()
-        logging.debug(f"SpannerDB init for {db_config.get('database_name')} with self.dialect={self.dialect}")
+        logging.debug(
+            f"SpannerDB init for {db_config.get('database_name')} with self.dialect={self.dialect}")
         if "pg" in raw_dialect or "postgres" in raw_dialect:
             self.dialect_enum = DatabaseDialect.POSTGRESQL
             self.expected_dialect_str = "POSTGRESQL"
@@ -68,7 +69,8 @@ class SpannerDB(DB):
         client_kwargs["disable_builtin_metrics"] = True
         client = spanner.Client(**client_kwargs)
         self.spanner_instance = client.instance(self.instance_id)
-        self.database = self.spanner_instance.database(db_name, database_dialect=self.dialect_enum)
+        self.database = self.spanner_instance.database(
+            db_name, database_dialect=self.dialect_enum)
 
     def close_connections(self):
         if self.emulator_manager:
@@ -77,8 +79,10 @@ class SpannerDB(DB):
     def batch_execute(self, commands: list[str]):
         if not commands:
             return
-        logging.debug(f"Executing batch in {self.database.database_id}. Object dialect: {self.database.database_dialect}")
-        logging.debug(f"Executing batch of {len(commands)} statements in Spanner {self.expected_dialect_str} for {self.database.database_id}")
+        logging.debug(
+            f"Executing batch in {self.database.database_id}. Object dialect: {self.database.database_dialect}")
+        logging.debug(
+            f"Executing batch of {len(commands)} statements in Spanner {self.expected_dialect_str} for {self.database.database_id}")
         if commands:
             logging.debug(f"First statement: {commands[0][:100]}...")
         # Chunk DDL statements into groups of 10 to avoid limit
@@ -86,7 +90,8 @@ class SpannerDB(DB):
         for i in range(0, len(commands), chunk_size):
             chunk = commands[i:i + chunk_size]
             try:
-                print(f"Creating tables in {self.database.name} with {len(chunk)} commands (chunk {i // chunk_size + 1})")
+                print(
+                    f"Creating tables in {self.database.name} with {len(chunk)} commands (chunk {i // chunk_size + 1})")
                 op = self.database.update_ddl(chunk)
                 op.result(timeout=600)
             except Exception as e:
@@ -97,7 +102,8 @@ class SpannerDB(DB):
                     if error:
                         # Ignore 'already exists' / 'Duplicate name' errors during fallback
                         if "Duplicate name" in error or "already exists" in error:
-                            logging.info(f"Ignoring duplicate error during fallback: {error}")
+                            logging.info(
+                                f"Ignoring duplicate error during fallback: {error}")
                         else:
                             raise RuntimeError(
                                 f"Error in batch statement: {stmt}\nError: {error}")
@@ -108,7 +114,8 @@ class SpannerDB(DB):
 
         # Detect DDL
         upper_query = query.strip().upper()
-        is_ddl = any(upper_query.startswith(prefix) for prefix in ["CREATE", "ALTER", "DROP", "RENAME"])
+        is_ddl = any(upper_query.startswith(prefix)
+                     for prefix in ["CREATE", "ALTER", "DROP", "RENAME"])
 
         if is_ddl:
             logging.info(f"Executing mixed DDL/DML sequence in Spanner...")
@@ -121,7 +128,8 @@ class SpannerDB(DB):
                     if not stmt:
                         continue
                     upper_stmt = stmt.upper()
-                    is_sub_ddl = any(upper_stmt.startswith(prefix) for prefix in ["CREATE", "ALTER", "DROP", "RENAME"])
+                    is_sub_ddl = any(upper_stmt.startswith(prefix) for prefix in [
+                                     "CREATE", "ALTER", "DROP", "RENAME"])
                     if is_sub_ddl:
                         op = self.database.update_ddl([stmt])
                         op.result(timeout=600)
@@ -158,7 +166,8 @@ class SpannerDB(DB):
                                 query, timeout=self.query_timeout)
                             result = [{"rows_affected": rows_affected}]
                         else:
-                            res = transaction.execute_sql(query, timeout=self.query_timeout)
+                            res = transaction.execute_sql(
+                                query, timeout=self.query_timeout)
                             rows = list(res)
                             fields = [
                                 f.name for f in res.fields] if res.fields else []
@@ -186,7 +195,8 @@ class SpannerDB(DB):
             else:
                 try:
                     with self.database.snapshot() as snapshot:
-                        res = snapshot.execute_sql(query, timeout=self.query_timeout)
+                        res = snapshot.execute_sql(
+                            query, timeout=self.query_timeout)
                         rows = list(res)
                         fields = [
                             f.name for f in res.fields] if res.fields else []
@@ -232,10 +242,12 @@ class SpannerDB(DB):
                         {"name": c_name, "type": str(d_type)})
 
             if db_metadata:
-                logging.info(f"Metadata extracted for {len(db_metadata)} tables in Spanner {self.expected_dialect_str}")
+                logging.info(
+                    f"Metadata extracted for {len(db_metadata)} tables in Spanner {self.expected_dialect_str}")
                 return db_metadata
             else:
-                logging.warning(f"No metadata found in Spanner {self.expected_dialect_str} information_schema for schema '{schema_name}'")
+                logging.warning(
+                    f"No metadata found in Spanner {self.expected_dialect_str} information_schema for schema '{schema_name}'")
         except Exception as e:
             logging.error(f"Native metadata inspection failed: {e}")
         return db_metadata
@@ -250,20 +262,24 @@ class SpannerDB(DB):
     def create_tmp_database(self, database_name):
         # Spanner database IDs cannot end with an underscore
         database_name = database_name.rstrip("_")
-        logging.info(f"Creating temporary Spanner database: {database_name}...")
+        logging.info(
+            f"Creating temporary Spanner database: {database_name}...")
         self.ensure_database_exists(database_name)
 
     def drop_tmp_database(self, database_name):
         database_name = database_name.rstrip("_")
-        logging.info(f"Dropping temporary Spanner database: {database_name}...")
+        logging.info(
+            f"Dropping temporary Spanner database: {database_name}...")
         try:
             spanner_client = spanner.Client(disable_builtin_metrics=True)
             instance = spanner_client.instance(self.instance_id)
             database = instance.database(database_name)
             database.drop()
-            logging.info(f"Successfully dropped Spanner database {database_name}.")
+            logging.info(
+                f"Successfully dropped Spanner database {database_name}.")
         except Exception as e:
-            logging.warning(f"Failed to drop temporary Spanner database {database_name}: {e}")
+            logging.warning(
+                f"Failed to drop temporary Spanner database {database_name}: {e}")
 
     def resetup_database(self, force=False, setup_users=False) -> None:
         # For Spanner, we need to ensure the database exists before we can resetup it
@@ -273,13 +289,15 @@ class SpannerDB(DB):
             # Verify the backend dialect matches what we expect
             self.database.reload()
             if self.database.database_dialect != self.dialect_enum:
-                logging.warning(f"Database {db_id} exists but has wrong dialect ({self.database.database_dialect} != {self.dialect_enum}). Dropping it.")
+                logging.warning(
+                    f"Database {db_id} exists but has wrong dialect ({self.database.database_dialect} != {self.dialect_enum}). Dropping it.")
                 self.drop_tmp_database(db_id)
                 # Wait for drop to complete (drop is usually fast, but just in case)
                 time.sleep(2)
 
         if not self.database.exists():
-            logging.info(f"Database {db_id} does not exist. Creating it before setup...")
+            logging.info(
+                f"Database {db_id} does not exist. Creating it before setup...")
             self.create_tmp_database(db_id)
 
         super().resetup_database(force=force, setup_users=setup_users)
@@ -289,11 +307,13 @@ class SpannerDB(DB):
         instance_id = self.instance_id
         instance = spanner_client.instance(instance_id)
         # Create database with the configured dialect
-        database = instance.database(database_name, database_dialect=self.dialect_enum)
+        database = instance.database(
+            database_name, database_dialect=self.dialect_enum)
         try:
             op = database.create()
             op.result()  # Wait for completion
-            logging.info(f"Successfully created Spanner database {database_name}.")
+            logging.info(
+                f"Successfully created Spanner database {database_name}.")
         except exceptions.AlreadyExists:
             pass
         except Exception as e:
@@ -327,9 +347,11 @@ class SpannerDB(DB):
     def _drop_views(self):
         with self.database.snapshot() as snapshot:
             if self.expected_dialect_str == "POSTGRESQL":
-                res = snapshot.execute_sql("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'VIEW'", timeout=self.query_timeout)
+                res = snapshot.execute_sql(
+                    "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'VIEW'", timeout=self.query_timeout)
             else:
-                res = snapshot.execute_sql("SELECT table_name FROM information_schema.tables WHERE (table_schema = '' OR table_schema IS NULL) AND table_type = 'VIEW'", timeout=self.query_timeout)
+                res = snapshot.execute_sql(
+                    "SELECT table_name FROM information_schema.tables WHERE (table_schema = '' OR table_schema IS NULL) AND table_type = 'VIEW'", timeout=self.query_timeout)
             view_names = [row[0] for row in res]
 
         if view_names:
@@ -340,7 +362,8 @@ class SpannerDB(DB):
             except Exception:
                 for v in view_names:
                     try:
-                        self.database.update_ddl([f"DROP VIEW {quote}{v}{quote}"]).result(timeout=60)
+                        self.database.update_ddl(
+                            [f"DROP VIEW {quote}{v}{quote}"]).result(timeout=60)
                     except Exception:
                         pass
 
@@ -352,13 +375,15 @@ class SpannerDB(DB):
 
         if index_names:
             quote = self._get_quote_char()
-            commands = [f"DROP INDEX {quote}{idx}{quote}" for idx in index_names]
+            commands = [
+                f"DROP INDEX {quote}{idx}{quote}" for idx in index_names]
             try:
                 self._execute_ddl_batch(commands)
             except Exception:
                 for idx in index_names:
                     try:
-                        self.database.update_ddl([f"DROP INDEX {quote}{idx}{quote}"]).result(timeout=60)
+                        self.database.update_ddl(
+                            [f"DROP INDEX {quote}{idx}{quote}"]).result(timeout=60)
                     except Exception:
                         pass
 
@@ -373,22 +398,26 @@ class SpannerDB(DB):
 
         if fk_info:
             quote = self._get_quote_char()
-            commands = [f"ALTER TABLE {quote}{table}{quote} DROP CONSTRAINT {quote}{fk}{quote}" for table, fk in fk_info]
+            commands = [
+                f"ALTER TABLE {quote}{table}{quote} DROP CONSTRAINT {quote}{fk}{quote}" for table, fk in fk_info]
             try:
                 self._execute_ddl_batch(commands)
             except Exception:
                 for table, fk in fk_info:
                     try:
-                        self.database.update_ddl([f"ALTER TABLE {quote}{table}{quote} DROP CONSTRAINT {quote}{fk}{quote}"]).result(timeout=60)
+                        self.database.update_ddl(
+                            [f"ALTER TABLE {quote}{table}{quote} DROP CONSTRAINT {quote}{fk}{quote}"]).result(timeout=60)
                     except Exception:
                         pass
 
     def _drop_tables(self):
         with self.database.snapshot() as snapshot:
             if self.expected_dialect_str == "POSTGRESQL":
-                res = snapshot.execute_sql("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE'", timeout=self.query_timeout)
+                res = snapshot.execute_sql(
+                    "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE'", timeout=self.query_timeout)
             else:
-                res = snapshot.execute_sql("SELECT table_name FROM information_schema.tables WHERE (table_schema = '' OR table_schema IS NULL) AND table_type = 'BASE TABLE'", timeout=self.query_timeout)
+                res = snapshot.execute_sql(
+                    "SELECT table_name FROM information_schema.tables WHERE (table_schema = '' OR table_schema IS NULL) AND table_type = 'BASE TABLE'", timeout=self.query_timeout)
             table_names = [row[0] for row in res]
 
         if not table_names:
@@ -407,7 +436,8 @@ class SpannerDB(DB):
                 next_pending = []
                 for t in pending_tables:
                     try:
-                        self.database.update_ddl([f"DROP TABLE {quote}{t}{quote}"]).result(timeout=30)
+                        self.database.update_ddl(
+                            [f"DROP TABLE {quote}{t}{quote}"]).result(timeout=30)
                     except Exception as e:
                         if "Table not found" not in str(e) and "does not exist" not in str(e):
                             next_pending.append(t)
@@ -416,7 +446,8 @@ class SpannerDB(DB):
     def drop_all_tables(self):
         try:
             if not self.database.exists():
-                logging.info(f"Database {self.database.database_id} does not exist. Skipping drop_all_tables.")
+                logging.info(
+                    f"Database {self.database.database_id} does not exist. Skipping drop_all_tables.")
                 return
 
             self._drop_views()
