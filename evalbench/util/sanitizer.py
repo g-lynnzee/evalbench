@@ -23,7 +23,6 @@ def sanitize_sql(sql: str, dialect: str = None):
 
     result = result.strip()
 
-    # 3. Existing rule for non-googlesql
     if dialect and dialect != "googlesql":
         result = result.replace("`", "")
 
