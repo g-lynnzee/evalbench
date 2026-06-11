@@ -152,7 +152,7 @@ def trends_component():
                         'requester': requester,
                         'product': product,
                         'dataset': dataset,
-                        'generator': generator,
+                        'model_config.generator': generator,
                         'latency': latency,
                         'tokens': tokens,
                         'trajectory': trajectory,
