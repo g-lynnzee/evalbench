@@ -100,7 +100,8 @@ def filter_conversation_history_json(
                         parsed.pop("tool_calls", None)
                     agent_val = json.dumps(parsed)
             except (json.JSONDecodeError, TypeError):
-                pass
+                # If agent_raw is not valid JSON, keep the original string unchanged.
+                agent_val = agent_raw
         elif isinstance(agent_raw, dict):
             parsed = dict(agent_raw)
             if not include_tool_calls and "tool_calls" in parsed:
