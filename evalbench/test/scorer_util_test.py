@@ -1,24 +1,25 @@
 import json
-from scorers.util import format_conversation_history
+from scorers.util import filter_conversation_history_json
 
 
-def test_format_conversation_history_without_tools():
+def test_filter_conversation_history_json_without_tools():
     history = [
-        {"user": "List cloud SQL instances.", "agent": json.dumps({"response": "Sure, looking.", "tool_calls": []})},
+        {"user": "List cloud SQL instances.", "agent": json.dumps({"response": "Sure, looking.", "tool_calls": [{"tool_name": "list"}]})},
         {"user": "Thanks.", "agent": "No problem."}
     ]
-    formatted = format_conversation_history(history, include_tool_calls=False)
+    filtered_str = filter_conversation_history_json(history, include_tool_calls=False)
+    filtered = json.loads(filtered_str)
 
-    expected = (
-        "User: List cloud SQL instances.\n"
-        "Agent: Sure, looking.\n"
-        "User: Thanks.\n"
-        "Agent: No problem.\n"
-    )
-    assert formatted == expected
+    # First turn should have agent JSON parsed, and tool_calls key removed
+    agent_1 = json.loads(filtered[0]["agent"])
+    assert "tool_calls" not in agent_1
+    assert agent_1["response"] == "Sure, looking."
+
+    # Second turn was plain text, should be preserved as-is
+    assert filtered[1]["agent"] == "No problem."
 
 
-def test_format_conversation_history_with_tools():
+def test_filter_conversation_history_json_with_tools():
     history = [
         {
             "user": "List cloud SQL instances.",
@@ -35,21 +36,11 @@ def test_format_conversation_history_with_tools():
             })
         }
     ]
-    formatted = format_conversation_history(history, include_tool_calls=True)
+    filtered_str = filter_conversation_history_json(history, include_tool_calls=True)
+    filtered = json.loads(filtered_str)
 
-    expected_part_1 = "User: List cloud SQL instances.\n"
-    expected_part_2 = "Agent invoked cloud-sql__list_instances(project=\"my-project\") -> Success:\n"
-    expected_part_3 = (
-        "  [\n"
-        "    {\n"
-        "      \"name\": \"instance-1\",\n"
-        "      \"state\": \"RUNNABLE\"\n"
-        "    }\n"
-        "  ]\n"
-    )
-    expected_part_4 = "Agent: Found instance-1.\n"
-
-    assert expected_part_1 in formatted
-    assert expected_part_2 in formatted
-    assert expected_part_3 in formatted
-    assert expected_part_4 in formatted
+    agent_1 = json.loads(filtered[0]["agent"])
+    assert "tool_calls" in agent_1
+    assert len(agent_1["tool_calls"]) == 1
+    assert agent_1["tool_calls"][0]["tool_name"] == "cloud-sql__list_instances"
+    assert agent_1["response"] == "Found instance-1."

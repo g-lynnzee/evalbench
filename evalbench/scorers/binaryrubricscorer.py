@@ -49,22 +49,12 @@ class BinaryRubricScorer(comparator.Comparator):
         except json.JSONDecodeError:
             return 0.0, "Invalid JSON in eval result context."
 
-        from .util import format_conversation_history
+        from .util import filter_conversation_history_json
 
         history_list = context.get("conversation_history", [])
-        if isinstance(history_list, str):
-            try:
-                history_list = json.loads(history_list)
-            except json.JSONDecodeError:
-                # history_list is plain text, not JSON; keep original value
-                pass
-
-        if isinstance(history_list, list):
-            formatted_history = format_conversation_history(
-                history_list, include_tool_calls=self.include_tool_calls
-            )
-        else:
-            formatted_history = str(history_list)
+        formatted_history = filter_conversation_history_json(
+            history_list, include_tool_calls=self.include_tool_calls
+        )
 
         scenario = context.get("scenario", {})
         criterion_to_evaluate = self.criterion

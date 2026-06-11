@@ -63,58 +63,53 @@ def make_hashable(value):
     return value
 
 
-def format_conversation_history(
-    history: list[dict[str, str]], include_tool_calls: bool = False
+def filter_conversation_history_json(
+    history: Any, include_tool_calls: bool = False
 ) -> str:
+    """Filters the conversation history JSON to include or exclude tool_calls.
+
+    Maintains the exact JSON list structure expected by downstream LLM prompts.
+    """
     import json
 
-    transcript = ""
-    for turn in history:
+    if isinstance(history, str):
+        try:
+            history_list = json.loads(history)
+        except (json.JSONDecodeError, TypeError):
+            return history
+    elif isinstance(history, list):
+        history_list = history
+    else:
+        return str(history)
+
+    cleaned_history = []
+    for turn in history_list:
+        if not isinstance(turn, dict):
+            cleaned_history.append(turn)
+            continue
+
         user_msg = turn.get("user", "")
         agent_raw = turn.get("agent", "")
 
-        transcript += f"User: {user_msg}\n"
+        agent_val = agent_raw
+        if isinstance(agent_raw, str):
+            try:
+                parsed = json.loads(agent_raw)
+                if isinstance(parsed, dict):
+                    if not include_tool_calls and "tool_calls" in parsed:
+                        parsed.pop("tool_calls", None)
+                    agent_val = json.dumps(parsed)
+            except (json.JSONDecodeError, TypeError):
+                pass
+        elif isinstance(agent_raw, dict):
+            parsed = dict(agent_raw)
+            if not include_tool_calls and "tool_calls" in parsed:
+                parsed.pop("tool_calls", None)
+            agent_val = parsed
 
-        agent_text = agent_raw
-        tool_calls_text = ""
+        cleaned_history.append({
+            "user": user_msg,
+            "agent": agent_val
+        })
 
-        try:
-            parsed = json.loads(agent_raw)
-            if isinstance(parsed, dict):
-                agent_text = parsed.get("response", agent_raw)
-                if include_tool_calls and "tool_calls" in parsed:
-                    calls = parsed["tool_calls"]
-                    if isinstance(calls, list):
-                        for call in calls:
-                            tname = call.get("tool_name", "unknown")
-                            params = call.get("parameters", {})
-                            status = call.get("status")
-                            resp = call.get("response")
-
-                            if isinstance(params, dict):
-                                params_str = ", ".join(f"{k}={json.dumps(v)}" for k, v in params.items())
-                            else:
-                                params_str = str(params)
-
-                            status_str = str(status) if status is not None else "Unknown"
-                            status_str = status_str[0].upper() + status_str[1:] if status_str else "Unknown"
-
-                            if resp is not None:
-                                if isinstance(resp, (dict, list)):
-                                    resp_str = json.dumps(resp, indent=2)
-                                else:
-                                    resp_str = str(resp)
-                                resp_lines = resp_str.split("\n")
-                                resp_str = "\n".join("  " + line for line in resp_lines)
-                                tool_calls_text += f"Agent invoked {tname}({params_str}) -> {status_str}:\n{resp_str}\n"
-                            else:
-                                tool_calls_text += f"Agent invoked {tname}({params_str}) -> {status_str}\n"
-        except (json.JSONDecodeError, TypeError):
-            # agent_raw is plain text, not JSON; keep original value
-            pass
-
-        if tool_calls_text:
-            transcript += tool_calls_text
-        transcript += f"Agent: {agent_text}\n"
-
-    return transcript
+    return json.dumps(cleaned_history, indent=2)
