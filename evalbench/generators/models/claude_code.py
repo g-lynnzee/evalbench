@@ -644,7 +644,7 @@ class ClaudeCodeGenerator(AgentCliGenerator):
                         "totalFail": sum(
                             1
                             for tc in tool_calls_dict.values()
-                            if tc.get("status") == "error"
+                            if tc.get("status") != "success"
                         ),
                         "totalDurationMs": 0,
                         "decisions": {

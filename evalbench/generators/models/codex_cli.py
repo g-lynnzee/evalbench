@@ -995,7 +995,7 @@ class CodexCliGenerator(AgentCliGenerator):
                 1 for tc in tool_calls_dict.values() if tc.get("status") == "success"
             ),
             "totalFail": sum(
-                1 for tc in tool_calls_dict.values() if tc.get("status") == "error"
+                1 for tc in tool_calls_dict.values() if tc.get("status") != "success"
             ),
             "totalDurationMs": total_tool_duration_ms,
             "decisions": {

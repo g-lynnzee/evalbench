@@ -44,3 +44,26 @@ def test_filter_conversation_history_json_with_tools():
     assert len(agent_1["tool_calls"]) == 1
     assert agent_1["tool_calls"][0]["tool_name"] == "cloud-sql__list_instances"
     assert agent_1["response"] == "Found instance-1."
+
+
+def test_filter_conversation_history_json_with_dict_agent():
+    history = [
+        {
+            "user": "List cloud SQL instances.",
+            "agent": {
+                "response": "Sure, looking.",
+                "tool_calls": [{"tool_name": "list"}]
+            }
+        },
+        {"user": "Thanks.", "agent": "No problem."}
+    ]
+    filtered_str = filter_conversation_history_json(
+        history, include_tool_calls=False
+    )
+    filtered = json.loads(filtered_str)
+
+    # First turn should have agent field as a serialized JSON string
+    assert isinstance(filtered[0]["agent"], str)
+    agent_1 = json.loads(filtered[0]["agent"])
+    assert "tool_calls" not in agent_1
+    assert agent_1["response"] == "Sure, looking."

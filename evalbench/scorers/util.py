@@ -106,7 +106,7 @@ def filter_conversation_history_json(
             parsed = dict(agent_raw)
             if not include_tool_calls and "tool_calls" in parsed:
                 parsed.pop("tool_calls", None)
-            agent_val = parsed
+            agent_val = json.dumps(parsed)
 
         cleaned_history.append({
             "user": user_msg,
