@@ -61,3 +61,56 @@ def make_hashable(value):
     elif isinstance(value, dict):
         return frozenset((k, make_hashable(v)) for k, v in value.items())
     return value
+
+
+def filter_conversation_history_json(
+    history: Any, include_tool_calls: bool = False
+) -> str:
+    """Filters the conversation history JSON to include or exclude tool_calls.
+
+    Maintains the exact JSON list structure expected by downstream LLM prompts.
+    """
+    import json
+
+    if isinstance(history, str):
+        try:
+            history_list = json.loads(history)
+        except (json.JSONDecodeError, TypeError):
+            return history
+    elif isinstance(history, list):
+        history_list = history
+    else:
+        return str(history)
+
+    cleaned_history = []
+    for turn in history_list:
+        if not isinstance(turn, dict):
+            cleaned_history.append(turn)
+            continue
+
+        user_msg = turn.get("user", "")
+        agent_raw = turn.get("agent", "")
+
+        agent_val = agent_raw
+        if isinstance(agent_raw, str):
+            try:
+                parsed = json.loads(agent_raw)
+                if isinstance(parsed, dict):
+                    if not include_tool_calls and "tool_calls" in parsed:
+                        parsed.pop("tool_calls", None)
+                    agent_val = json.dumps(parsed)
+            except (json.JSONDecodeError, TypeError):
+                # If agent_raw is not valid JSON, keep the original string unchanged.
+                agent_val = agent_raw
+        elif isinstance(agent_raw, dict):
+            parsed = dict(agent_raw)
+            if not include_tool_calls and "tool_calls" in parsed:
+                parsed.pop("tool_calls", None)
+            agent_val = json.dumps(parsed)
+
+        cleaned_history.append({
+            "user": user_msg,
+            "agent": agent_val
+        })
+
+    return json.dumps(cleaned_history, indent=2)
