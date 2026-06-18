@@ -163,8 +163,8 @@ class SQLiteDB(DB):
                         columns.append(
                             {"name": column.name, "type": str(column.type)})
                     db_metadata[table.name] = columns
-        except Exception:
-            pass
+        except Exception as e:
+            logging.warning(f"Failed to reflect database metadata: {e}")
 
         return db_metadata
 
