@@ -781,9 +781,10 @@ class CodexCliGenerator(AgentCliGenerator):
         """
         tool_durations = tool_durations or {}
 
-        final_obj = {"session_id": "", "response": "", "stats": {}}
-        tool_uses: dict[str, dict] = {}
-        tool_results: dict[str, dict] = {}
+        from collections import OrderedDict
+
+        final_obj = {"session_id": "", "response": "", "stats": {}, "tool_calls": []}
+        tool_calls_dict = OrderedDict()
         usage: dict = {}
         model_name = self.model or "unknown"
 
@@ -853,54 +854,93 @@ class CodexCliGenerator(AgentCliGenerator):
                 # can compare across harnesses without per-generator logic.
                 server = payload.get("server", "")
                 tool = payload.get("tool", "unknown")
-                tool_uses[item_id] = {
-                    "tool_name": canonical_tool_name(server, tool),
-                    "server": server,
-                    "parameters": self._coerce_json(payload.get("arguments", {})),
-                }
+                tname = canonical_tool_name(server, tool)
+                params = self._coerce_json(payload.get("arguments", {}))
+
+                if item_id:
+                    if item_id not in tool_calls_dict:
+                        tool_calls_dict[item_id] = {
+                            "tool_id": item_id,
+                            "tool_name": tname,
+                            "parameters": params,
+                            "status": None,
+                            "response": None,
+                        }
+                    else:
+                        tool_calls_dict[item_id]["parameters"] = params
+
                 if event_type == self._EV_ITEM_COMPLETED:
                     status = payload.get("status", "")
                     is_error = bool(payload.get("error")) or status not in (
                         "", "completed", "success", "ok",
                     )
-                    tool_results[item_id] = {
-                        "status": "error" if is_error else "success",
-                        "content": payload.get("result", ""),
-                    }
+                    status_str = "error" if is_error else "success"
+                    if item_id and item_id in tool_calls_dict:
+                        tool_calls_dict[item_id]["status"] = status_str
+                        tool_calls_dict[item_id]["response"] = payload.get("result", "")
 
             elif kind == "command_execution":
-                tool_uses[item_id] = {
-                    "tool_name": "shell",
-                    "parameters": {"command": payload.get("command", "")},
-                }
+                cmd_str = payload.get("command", "")
+                if item_id:
+                    if item_id not in tool_calls_dict:
+                        tool_calls_dict[item_id] = {
+                            "tool_id": item_id,
+                            "tool_name": "shell",
+                            "parameters": {"command": cmd_str},
+                            "status": None,
+                            "response": None,
+                        }
+                    else:
+                        tool_calls_dict[item_id]["parameters"] = {"command": cmd_str}
+
                 if event_type == self._EV_ITEM_COMPLETED:
                     exit_code = payload.get("exit_code")
                     is_error = bool(exit_code) and exit_code != 0
-                    tool_results[item_id] = {
-                        "status": "error" if is_error else "success",
-                        "content": payload.get("aggregated_output", ""),
-                    }
+                    status_str = "error" if is_error else "success"
+                    if item_id and item_id in tool_calls_dict:
+                        tool_calls_dict[item_id]["status"] = status_str
+                        tool_calls_dict[item_id]["response"] = payload.get("aggregated_output", "")
 
             elif kind == "web_search":
-                tool_uses[item_id] = {
-                    "tool_name": "web_search",
-                    "parameters": {"query": payload.get("query", "")},
-                }
+                query_str = payload.get("query", "")
+                if item_id:
+                    if item_id not in tool_calls_dict:
+                        tool_calls_dict[item_id] = {
+                            "tool_id": item_id,
+                            "tool_name": "web_search",
+                            "parameters": {"query": query_str},
+                            "status": None,
+                            "response": None,
+                        }
+                    else:
+                        tool_calls_dict[item_id]["parameters"] = {"query": query_str}
+
                 if event_type == self._EV_ITEM_COMPLETED:
-                    tool_results[item_id] = {"status": "success", "content": ""}
+                    if item_id and item_id in tool_calls_dict:
+                        tool_calls_dict[item_id]["status"] = "success"
+                        tool_calls_dict[item_id]["response"] = ""
 
             elif kind == "file_change":
-                tool_uses[item_id] = {
-                    "tool_name": "file_change",
-                    "parameters": {"changes": payload.get("changes", [])},
-                }
+                changes_list = payload.get("changes", [])
+                if item_id:
+                    if item_id not in tool_calls_dict:
+                        tool_calls_dict[item_id] = {
+                            "tool_id": item_id,
+                            "tool_name": "file_change",
+                            "parameters": {"changes": changes_list},
+                            "status": None,
+                            "response": None,
+                        }
+                    else:
+                        tool_calls_dict[item_id]["parameters"] = {"changes": changes_list}
+
                 if event_type == self._EV_ITEM_COMPLETED:
                     status = payload.get("status", "")
                     is_error = status not in ("", "completed", "success", "ok")
-                    tool_results[item_id] = {
-                        "status": "error" if is_error else "success",
-                        "content": "",
-                    }
+                    status_str = "error" if is_error else "success"
+                    if item_id and item_id in tool_calls_dict:
+                        tool_calls_dict[item_id]["status"] = status_str
+                        tool_calls_dict[item_id]["response"] = ""
 
         input_tokens = int(usage.get("input_tokens", 0) or 0)
         output_tokens = int(usage.get("output_tokens", 0) or 0)
@@ -947,28 +987,28 @@ class CodexCliGenerator(AgentCliGenerator):
         final_obj["stats"]["models"] = models
 
         total_tool_duration_ms = sum(
-            tool_durations.get(tid, 0) for tid in tool_uses
+            tool_durations.get(tid, 0) for tid in tool_calls_dict
         )
         tools_stats = {
-            "totalCalls": len(tool_uses),
+            "totalCalls": len(tool_calls_dict),
             "totalSuccess": sum(
-                1 for tr in tool_results.values() if tr.get("status") == "success"
+                1 for tc in tool_calls_dict.values() if tc.get("status") == "success"
             ),
             "totalFail": sum(
-                1 for tr in tool_results.values() if tr.get("status") != "success"
+                1 for tc in tool_calls_dict.values() if tc.get("status") != "success"
             ),
             "totalDurationMs": total_tool_duration_ms,
             "decisions": {
-                "accept": len(tool_uses),
+                "accept": len(tool_calls_dict),
                 "reject": 0,
                 "modify": 0,
-                "auto_accept": len(tool_uses),
+                "auto_accept": len(tool_calls_dict),
             },
             "byName": {},
         }
 
-        for tid, tu in tool_uses.items():
-            tname = tu.get("tool_name", "unknown")
+        for tid, tc in tool_calls_dict.items():
+            tname = tc.get("tool_name", "unknown")
             bucket = tools_stats["byName"].setdefault(tname, {
                 "count": 0,
                 "success": 0,
@@ -981,19 +1021,18 @@ class CodexCliGenerator(AgentCliGenerator):
             })
             bucket["count"] += 1
             bucket["durationMs"] += tool_durations.get(tid, 0)
-            bucket["parameters"].append(tu.get("parameters", {}))
+            bucket["parameters"].append(tc.get("parameters", {}))
             bucket["decisions"]["accept"] += 1
             bucket["decisions"]["auto_accept"] += 1
 
-            tr = tool_results.get(tid)
-            if tr:
-                if tr.get("status") == "success":
-                    bucket["success"] += 1
-                else:
-                    bucket["fail"] += 1
+            if tc.get("status") == "success":
+                bucket["success"] += 1
+            elif tc.get("status") == "error":
+                bucket["fail"] += 1
 
         final_obj["stats"]["tools"] = tools_stats
 
+        final_obj["tool_calls"] = list(tool_calls_dict.values())
         return json.dumps(final_obj, indent=2)
 
     @staticmethod

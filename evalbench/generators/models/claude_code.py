@@ -478,9 +478,10 @@ class ClaudeCodeGenerator(AgentCliGenerator):
         """Parses Claude Code stream-json output into a normalized format
         compatible with the eval pipeline."""
 
-        final_obj = {"session_id": "", "response": "", "stats": {}}
-        tool_uses = {}
-        tool_results = {}
+        from collections import OrderedDict
+
+        final_obj = {"session_id": "", "response": "", "stats": {}, "tool_calls": []}
+        tool_calls_dict = OrderedDict()
         # Fall back to the configured model if the stream's `system` init
         # event doesn't include one (e.g., truncated output).
         model_name = self.model or "unknown"
@@ -516,18 +517,23 @@ class ClaudeCodeGenerator(AgentCliGenerator):
                             # trajectory matcher can compare across
                             # harnesses without per-generator logic.
                             raw_name = block.get("name", "unknown")
-                            tool_uses[tool_id] = {
-                                "tool_name": canonicalize_claude_tool_name(raw_name),
-                                "parameters": block.get("input", {}),
-                            }
+                            tname = canonicalize_claude_tool_name(raw_name)
+                            if tool_id:
+                                tool_calls_dict[tool_id] = {
+                                    "tool_id": tool_id,
+                                    "tool_name": tname,
+                                    "parameters": block.get("input", {}),
+                                    "status": None,
+                                    "response": None,
+                                }
 
                 elif event_type == "tool_result":
                     tool_id = event.get("tool_use_id") or event.get("id", "")
                     is_error = event.get("is_error", False)
-                    tool_results[tool_id] = {
-                        "status": "error" if is_error else "success",
-                        "content": event.get("content", ""),
-                    }
+                    status = "error" if is_error else "success"
+                    if tool_id and tool_id in tool_calls_dict:
+                        tool_calls_dict[tool_id]["status"] = status
+                        tool_calls_dict[tool_id]["response"] = event.get("content", "")
 
                 elif event_type == "result":
                     if "session_id" in event:
@@ -629,29 +635,29 @@ class ClaudeCodeGenerator(AgentCliGenerator):
 
                     # Build tool stats
                     tools_stats = {
-                        "totalCalls": len(tool_uses),
+                        "totalCalls": len(tool_calls_dict),
                         "totalSuccess": sum(
                             1
-                            for tr in tool_results.values()
-                            if tr.get("status") == "success"
+                            for tc in tool_calls_dict.values()
+                            if tc.get("status") == "success"
                         ),
                         "totalFail": sum(
                             1
-                            for tr in tool_results.values()
-                            if tr.get("status") != "success"
+                            for tc in tool_calls_dict.values()
+                            if tc.get("status") != "success"
                         ),
                         "totalDurationMs": 0,
                         "decisions": {
-                            "accept": len(tool_uses),
+                            "accept": len(tool_calls_dict),
                             "reject": 0,
                             "modify": 0,
-                            "auto_accept": len(tool_uses),
+                            "auto_accept": len(tool_calls_dict),
                         },
                         "byName": {},
                     }
 
-                    for tid, tu in tool_uses.items():
-                        tname = tu.get("tool_name", "unknown")
+                    for tc in tool_calls_dict.values():
+                        tname = tc.get("tool_name", "unknown")
                         if tname not in tools_stats["byName"]:
                             tools_stats["byName"][tname] = {
                                 "count": 0,
@@ -669,16 +675,14 @@ class ClaudeCodeGenerator(AgentCliGenerator):
 
                         tstat = tools_stats["byName"][tname]
                         tstat["count"] += 1
-                        tstat["parameters"].append(tu.get("parameters", {}))
+                        tstat["parameters"].append(tc.get("parameters", {}))
                         tstat["decisions"]["accept"] += 1
                         tstat["decisions"]["auto_accept"] += 1
 
-                        tr = tool_results.get(tid)
-                        if tr:
-                            if tr.get("status") == "success":
-                                tstat["success"] += 1
-                            else:
-                                tstat["fail"] += 1
+                        if tc.get("status") == "success":
+                            tstat["success"] += 1
+                        elif tc.get("status") == "error":
+                            tstat["fail"] += 1
 
                     final_obj["stats"]["tools"] = tools_stats
 
@@ -689,6 +693,7 @@ class ClaudeCodeGenerator(AgentCliGenerator):
             except Exception as e:
                 logging.debug(f"Failed to parse stream JSON line: {e}")
 
+        final_obj["tool_calls"] = list(tool_calls_dict.values())
         return json.dumps(final_obj, indent=2)
 
     @property
