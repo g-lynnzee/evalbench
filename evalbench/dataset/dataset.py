@@ -60,8 +60,8 @@ def load_knowledge(
                 if not line.strip():
                     continue
                 obj = json.loads(line)
-            if obj.get("id") not in exclude_ids:
-                external_kg_list.append(json.dumps(obj))
+                if obj.get("id") not in exclude_ids:
+                    external_kg_list.append(json.dumps(obj))
 
     external_kg = "\n".join(external_kg_list)
     return external_kg
