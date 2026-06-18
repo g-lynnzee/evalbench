@@ -120,6 +120,8 @@ class QueryData(QueryGenerator):
             response.raise_for_status()
             # self.session_mgr.delete_session("dataagent", "evalbench_user", session_id)
         except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 404:
+                raise
             raise ResourceExhaustedError(e)
 
         functionCall = self.find_last_item(
