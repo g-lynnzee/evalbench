@@ -1584,8 +1584,14 @@ def list_view_component(directories, results_dir):
             with me.box(
                 style=me.Style(
                     max_height="600px",
+                    overflow_x="auto",
                     overflow_y="auto",
                     margin=me.Margin(top="16px"),
+                    width="100%",
+                )
+            ):
+              with me.box(
+                style=me.Style(
                     display="table",
                     width="100%",
                     border=me.Border.all(
@@ -1598,7 +1604,7 @@ def list_view_component(directories, results_dir):
                     border_radius="8px",
                     background="#ffffff",
                 )
-            ):
+              ):
                 # Header row
                 with me.box(
                     style=me.Style(
