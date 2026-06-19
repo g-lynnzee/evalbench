@@ -374,6 +374,13 @@ def status_component():
                 # Render table similar to lists tab
                 with me.box(
                     style=me.Style(
+                        width="100%",
+                        overflow_x="auto",
+                        margin=me.Margin(top="16px"),
+                    )
+                ):
+                  with me.box(
+                    style=me.Style(
                         display="table",
                         width="100%",
                         border=me.Border.all(
@@ -381,9 +388,8 @@ def status_component():
                         ),
                         border_radius="8px",
                         background="#ffffff",
-                        margin=me.Margin(top="16px"),
                     )
-                ):
+                  ):
                     # Header row
                     with me.box(
                         style=me.Style(
