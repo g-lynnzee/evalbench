@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.10.0](https://github.com/GoogleCloudPlatform/evalbench/compare/v1.9.0...v1.10.0) (2026-06-19)
+
+
+### Features
+
+* add 300-second timeout to QueryData API calls to prevent indefinite blocking ([76c7ca4](https://github.com/GoogleCloudPlatform/evalbench/commit/76c7ca4f4a7e0c56b280e855d791f7a823c06993))
+* natively copy declared env_files to agent sandbox ([#434](https://github.com/GoogleCloudPlatform/evalbench/issues/434)) ([db4e5b8](https://github.com/GoogleCloudPlatform/evalbench/commit/db4e5b8e6883b38831b3359aba0227a316dae94c))
+
+
+### Bug Fixes
+
+* add timeout to data agent request in querydata generator ([a8b148e](https://github.com/GoogleCloudPlatform/evalbench/commit/a8b148e2397383bac94285f3c5ca6648ec18df1c))
+* add timeout to data agent request in querydata generator ([9573c14](https://github.com/GoogleCloudPlatform/evalbench/commit/9573c146a4eb3be73b0a49cd087d0b26163a6259))
+* **dataset:** load all knowledge-base entries, not just the last line ([b8b96c8](https://github.com/GoogleCloudPlatform/evalbench/commit/b8b96c8db96c820f81ea81e8c21fae151f00b046))
+* **dataset:** load all knowledge-base entries, not just the last line ([63441ce](https://github.com/GoogleCloudPlatform/evalbench/commit/63441ce5fde578055fd19afc6a6972908e70d445))
+* **interact:** count total_db_len so DB-setup progress isn't always zero ([#446](https://github.com/GoogleCloudPlatform/evalbench/issues/446)) ([0d66535](https://github.com/GoogleCloudPlatform/evalbench/commit/0d66535eaa20e9b88fded96e0d498b4f9d68cb7e))
+* log metadata reflection failures instead of swallowing them ([cce4eb2](https://github.com/GoogleCloudPlatform/evalbench/commit/cce4eb20dc4b61497cac720b7b7bfed3ff16eb05))
+* log metadata reflection failures instead of swallowing them ([fa3c508](https://github.com/GoogleCloudPlatform/evalbench/commit/fa3c5086fb976310dbfea9e5ece1fc4d6f5b6bad))
+* re-raise 404 as bare HTTPError instead of ResourceExhaustedError ([3307570](https://github.com/GoogleCloudPlatform/evalbench/commit/330757065d1c23d670b6668ae5224a25cf45c6df))
+* re-raise 404 errors in querydata generate_internal ([7a2bf1f](https://github.com/GoogleCloudPlatform/evalbench/commit/7a2bf1f246de36bc6ae5d88734b6108ca18a90b5))
+* re-raise 404 errors in querydata generate_internal ([b7f7b30](https://github.com/GoogleCloudPlatform/evalbench/commit/b7f7b304521d2363f0bbc5622327efca2984a713))
+* **scorers:** correct digit regex in behavioral metrics scorer ([78ecdfc](https://github.com/GoogleCloudPlatform/evalbench/commit/78ecdfc67cd0c88ac394d3eb41be57bce8b08b27))
+* **scorers:** correct digit regex in behavioral metrics scorer ([c8d82ea](https://github.com/GoogleCloudPlatform/evalbench/commit/c8d82ea2e784f87273135532855cf2b2f2352463))
+
 ## [1.9.0](https://github.com/GoogleCloudPlatform/evalbench/compare/v1.8.0...v1.9.0) (2026-06-11)
 
 
