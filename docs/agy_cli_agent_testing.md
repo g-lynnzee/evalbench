@@ -270,18 +270,12 @@ setup:
       url: "https://github.com/gemini-cli-extensions/cloud-sql-postgresql.git#v1.2.3"
 ```
 
-> [!WARNING]
-> Unlike the `claude_code` and `gemini_cli` harnesses, a `plugin@marketplace`
-> spec is **not** a reliable target here: agy resolves marketplace names
-> server-side, and common names such as `gemini-cli-extensions` are not
-> recognized (`agy plugin install` fails with `unknown marketplace`). Use a
-> git URL or a local plugin directory instead.
-
 > [!NOTE]
-> Legacy dict actions (`link`, `install`, `enable`, `disable`,
-> `uninstall`) that the gemini-cli generator supports are **not**
-> supported here. Use a string target or `install_from_repo`.
-> Unsupported entries are logged and skipped.
+> A `plugin@marketplace` spec is not a reliable target (unlike `claude_code`/
+> `gemini_cli`); use a git URL or local directory. Legacy dict actions
+> (`link`, `install`, `enable`, `disable`, `uninstall`) that the gemini-cli
+> generator supports are **not** supported here either -- use a string target
+> or `install_from_repo`. Unsupported entries are logged and skipped.
 
 ### Fake MCP Servers (Testing)
 
