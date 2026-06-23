@@ -255,20 +255,27 @@ supported:
 setup:
   skills:
     # String form: an install target passed straight to
-    # `agy plugin install`. May be a local plugin directory, a
-    # `plugin@marketplace` spec, or a git URL (cloned first).
-    - "cloud-sql-postgresql@gemini-cli-extensions"
+    # `agy plugin install`. May be a local plugin directory or a git URL
+    # (cloned first). `agy plugin install` requires the target to resolve
+    # to a directory, so a bare git URL is cloned before install.
+    - "/path/to/a/local/plugin"
 
     # Dict form: same, via an explicit target. Git URLs (scheme:// or
     # trailing .git) are cloned first, then the clone dir is installed;
-    # local paths and marketplace specs are installed in place. `url:`
-    # is conventional; `path:` is accepted as a synonym. Append
-    # `#<branch-or-tag>` to a git URL to pin a version -- the clone uses
-    # `git clone --branch`, which resolves branch and tag names only, not
-    # raw commit SHAs.
+    # local paths are installed in place. `url:` is conventional; `path:`
+    # is accepted as a synonym. Append `#<branch-or-tag>` to a git URL to
+    # pin a version -- the clone uses `git clone --branch`, which resolves
+    # branch and tag names only, not raw commit SHAs.
     - action: install_from_repo
       url: "https://github.com/gemini-cli-extensions/cloud-sql-postgresql.git#v1.2.3"
 ```
+
+> [!WARNING]
+> Unlike the `claude_code` and `gemini_cli` harnesses, a `plugin@marketplace`
+> spec is **not** a reliable target here: agy resolves marketplace names
+> server-side, and common names such as `gemini-cli-extensions` are not
+> recognized (`agy plugin install` fails with `unknown marketplace`). Use a
+> git URL or a local plugin directory instead.
 
 > [!NOTE]
 > Legacy dict actions (`link`, `install`, `enable`, `disable`,
