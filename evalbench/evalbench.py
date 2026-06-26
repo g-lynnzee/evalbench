@@ -77,11 +77,10 @@ def eval(experiment_config: str):
             parsed_config["scenario_pattern"] = env_pattern
 
         # 2. Merge CLI Flags (overrides Environment Variables and YAML)
-        if flags.FLAGS.is_parsed():
-            if _SCENARIOS.value:
-                parsed_config["scenarios"] = _SCENARIOS.value
-            if _SCENARIO_PATTERN.value:
-                parsed_config["scenario_pattern"] = _SCENARIO_PATTERN.value
+        if _SCENARIOS.value:
+            parsed_config["scenarios"] = _SCENARIOS.value
+        if _SCENARIO_PATTERN.value:
+            parsed_config["scenario_pattern"] = _SCENARIO_PATTERN.value
 
         set_session_configs(session, parsed_config)
         # Load the configs

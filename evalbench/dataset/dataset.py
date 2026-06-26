@@ -121,22 +121,13 @@ def load_bird_interact_dataset(json_file_path, config):
     return input_items
 
 
-def load_dea_json(json_file_path, config):
+def load_dea_json(json_file_path):
     all_items: dict[str, list[EvalDeaRequest]] = {
         "dea-format": [],
     }
     with open(json_file_path, "r") as json_file:
         content = json_file.read()
         data = json.loads(content)
-
-        # Filter scenarios
-        scenarios = data.get("scenarios", [])
-        filtered_scenarios = _filter_scenarios(scenarios, config)
-        if scenarios and not filtered_scenarios:
-            return all_items
-
-        if "scenarios" in data:
-            data["scenarios"] = filtered_scenarios
 
         eval_input = EvalDeaRequest(
             raw_dict=data
@@ -149,9 +140,6 @@ def load_dea_json(json_file_path, config):
 def _filter_scenarios(scenarios: list[dict], config: dict) -> list[dict]:
     """Filters a list of scenarios based on explicit IDs or glob pattern in config."""
     scenarios_to_run = config.get("scenarios", [])
-    if isinstance(scenarios_to_run, str):
-        scenarios_to_run = [s.strip() for s in scenarios_to_run.split(",") if s.strip()]
-
     scenario_pattern = config.get("scenario_pattern", None)
 
     # If no filters are specified, return the original list (run all)
@@ -162,6 +150,7 @@ def _filter_scenarios(scenarios: list[dict], config: dict) -> list[dict]:
     for scenario in scenarios:
         scenario_id = scenario.get("id")
         if not scenario_id:
+            # Drop scenarios without IDs per user feedback
             continue
 
         # Match explicit list of IDs
@@ -207,11 +196,7 @@ def load_gemini_cli_json(json_file_path, config):
 
         # Filter scenarios
         scenarios = item.get("scenarios", [])
-        filtered_scenarios = _filter_scenarios(scenarios, config)
-        if scenarios and not filtered_scenarios:
-            return all_items
-
-        item["scenarios"] = filtered_scenarios
+        item["scenarios"] = _filter_scenarios(scenarios, config)
 
         # Resolve work_dir for scenarios
         dataset_dir = os.path.dirname(json_file_path)
@@ -251,7 +236,7 @@ def load_dataset_from_json(json_file_path, config):
     elif dataset_format == "cortado-format":
         all_items = load_cortado_json(json_file_path, config)
     elif dataset_format == "dea-format":
-        all_items = load_dea_json(json_file_path, config)
+        all_items = load_dea_json(json_file_path)
     else:
         all_items = load_json(json_file_path)
 
@@ -285,6 +270,7 @@ def load_dataset_from_json(json_file_path, config):
                            for q in ["dql", "dml", "ddl"])
         logging.info(f"Converted {totalEntries} entries to EvalInput.")
     return input_items
+
 
 
 def load_dataset_from_bird_format(dataset: Sequence[dict], config):
