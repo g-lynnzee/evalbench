@@ -310,4 +310,3 @@ class AgentEvaluator:
         if resolved_work_dir and temp_sandbox_dir:
             shutil.copytree(temp_sandbox_dir, resolved_work_dir, dirs_exist_ok=True)
             shutil.rmtree(temp_sandbox_dir)
-
