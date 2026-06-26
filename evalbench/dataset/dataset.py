@@ -3,7 +3,6 @@
 from typing import Any, Optional
 import json
 import logging
-import fnmatch
 from collections.abc import Sequence
 from dataset.evalinput import EvalInputRequest
 from dataset.evalinteractinput import EvalInteractInputRequest
@@ -137,37 +136,7 @@ def load_dea_json(json_file_path):
     return all_items
 
 
-def _filter_scenarios(scenarios: list[dict], config: dict) -> list[dict]:
-    """Filters a list of scenarios based on explicit IDs or glob pattern in config."""
-    scenarios_to_run = config.get("scenarios", [])
-    scenario_pattern = config.get("scenario_pattern", None)
-
-    # If no filters are specified, return the original list (run all)
-    if not scenarios_to_run and not scenario_pattern:
-        return scenarios
-
-    filtered_scenarios = []
-    for scenario in scenarios:
-        scenario_id = scenario.get("id")
-        if not scenario_id:
-            # Drop scenarios without IDs per user feedback
-            continue
-
-        # Match explicit list of IDs
-        if scenarios_to_run and scenario_id not in scenarios_to_run:
-            continue
-
-        # Match glob pattern
-        if scenario_pattern:
-            if not fnmatch.fnmatch(scenario_id, scenario_pattern):
-                continue
-
-        filtered_scenarios.append(scenario)
-
-    return filtered_scenarios
-
-
-def load_cortado_json(json_file_path, config):
+def load_cortado_json(json_file_path):
     all_items: dict[str, list[EvalCortadoRequest]] = {
         "cortado-format": [],
     }
@@ -175,8 +144,7 @@ def load_cortado_json(json_file_path, config):
         data = json.load(json_file)
 
         scenarios = data.get("scenarios", [])
-        filtered_scenarios = _filter_scenarios(scenarios, config)
-        for scenario in filtered_scenarios:
+        for scenario in scenarios:
             eval_input = EvalCortadoRequest(
                 raw_dict=scenario
             )
@@ -185,7 +153,7 @@ def load_cortado_json(json_file_path, config):
     return all_items
 
 
-def load_gemini_cli_json(json_file_path, config):
+def load_gemini_cli_json(json_file_path):
     all_items: dict[str, list[EvalGeminiCliRequest]] = {
         "gemini-cli-format": [],
     }
@@ -194,13 +162,10 @@ def load_gemini_cli_json(json_file_path, config):
         json_item = _expand_env_placeholders(json_item, json_file_path)
         item = json.loads(json_item)
 
-        # Filter scenarios
-        scenarios = item.get("scenarios", [])
-        item["scenarios"] = _filter_scenarios(scenarios, config)
-
         # Resolve work_dir for scenarios
+        scenarios = item.get("scenarios", [])
         dataset_dir = os.path.dirname(json_file_path)
-        for scenario in item["scenarios"]:
+        for scenario in scenarios:
             if "work_dir" in scenario:
                 work_dir = scenario["work_dir"]
                 # Resolve relative to dataset file
@@ -232,9 +197,9 @@ def load_dataset_from_json(json_file_path, config):
     if dataset_format == "bird-interact-format":
         all_items = load_bird_interact_dataset(json_file_path, config)
     elif dataset_format in ("gemini-cli-format", "agent-format"):
-        all_items = load_gemini_cli_json(json_file_path, config)
+        all_items = load_gemini_cli_json(json_file_path)
     elif dataset_format == "cortado-format":
-        all_items = load_cortado_json(json_file_path, config)
+        all_items = load_cortado_json(json_file_path)
     elif dataset_format == "dea-format":
         all_items = load_dea_json(json_file_path)
     else:
@@ -253,7 +218,6 @@ def load_dataset_from_json(json_file_path, config):
     elif dataset_format == "cortado-format":
         if "orchestrator" not in config:
             config["orchestrator"] = "cortado"
-        input_items = all_items
     elif dataset_format == "dea-format":
         if "orchestrator" not in config:
             config["orchestrator"] = "dea"
@@ -270,7 +234,6 @@ def load_dataset_from_json(json_file_path, config):
                            for q in ["dql", "dml", "ddl"])
         logging.info(f"Converted {totalEntries} entries to EvalInput.")
     return input_items
-
 
 
 def load_dataset_from_bird_format(dataset: Sequence[dict], config):
