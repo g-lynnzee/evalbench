@@ -123,7 +123,6 @@ class AgentEvaluator:
         resolved_work_dir = scenario.get("resolved_work_dir")
         execution_cwd, temp_sandbox_dir = self._setup_sandbox(resolved_work_dir)
 
-
         # Copy declared env_files to fake_home
         fake_home = getattr(self.generator, "fake_home", None)
         if fake_home:
@@ -288,7 +287,7 @@ class AgentEvaluator:
             return
         trusted_folders_path = os.path.join(fake_home, ".gemini", "trustedFolders.json")
         os.makedirs(os.path.dirname(trusted_folders_path), exist_ok=True)
-        
+
         trusted_folders = {}
         if os.path.exists(trusted_folders_path):
             try:
@@ -296,11 +295,11 @@ class AgentEvaluator:
                     trusted_folders = json.load(f)
             except json.JSONDecodeError:
                 pass
-                
+
         trusted_folders[execution_cwd] = "TRUST_FOLDER"
         if resolved_work_dir:
             trusted_folders[resolved_work_dir] = "TRUST_FOLDER"
-            
+
         with open(trusted_folders_path, "w") as f:
             json.dump(trusted_folders, f, indent=2)
         logging.info("Registered sandbox folder trust in fake_home settings.")
